@@ -11,10 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.hyperspace;
+package io.trino.plugin.hyperspace.index;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.Range;
@@ -22,19 +21,19 @@ import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.predicate.ValueSet;
 import io.trino.spi.type.BigintType;
 
-import java.io.File;
-import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static io.trino.plugin.hyperspace.index.IndexLogManager.IndexLogEntry;
 
 /**
  * Hyperspace data skipping index that skips split if possible.
  */
-public class HyperspaceDataSkippingIndex {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
+public class HyperspaceDataSkippingIndex
+{
     private static final String INDEX_REPOSITORY = "/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes";
 
     private final Set<String> includedDataFiles;
@@ -43,12 +42,16 @@ public class HyperspaceDataSkippingIndex {
      * @param indexName index name
      * @param predicate predicate on the indexed column
      */
-    public HyperspaceDataSkippingIndex(String indexName, TupleDomain<? extends ColumnHandle> predicate) {
+    public HyperspaceDataSkippingIndex(String indexName, TupleDomain<? extends ColumnHandle> predicate)
+    {
         try {
-            IndexLogEntry indexLogEntry = loadIndexLog(indexName);
-            List<IndexDataEntry> indexDataEntries = loadIndexData(indexLogEntry.logDataFilePath);
+            Path indexPath = Paths.get(INDEX_REPOSITORY, indexName);
+            IndexLogManager indexLogManager = new IndexLogManager(indexPath);
+            IndexLogEntry indexLogEntry = indexLogManager.getLatestStableLog();
+            List<IndexDataEntry> indexDataEntries = null;//loadIndexData(indexLogEntry.logDataFilePath);
             this.includedDataFiles = skipSourceDataFiles(indexLogEntry, indexDataEntries, predicate);
-        } catch (Throwable e) {
+        }
+        catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
@@ -56,22 +59,6 @@ public class HyperspaceDataSkippingIndex {
 
     public boolean isSplitIncluded(String filePath) {
         return includedDataFiles.contains(filePath);
-    }
-
-    private IndexLogEntry loadIndexLog(String indexName)
-            throws IOException {
-        String indexPath = INDEX_REPOSITORY + "/orders-minmax";
-        String latestStableLogPath = indexPath + "/_hyperspace_log/1";
-        JsonNode jsonNode = MAPPER.readTree(new File(latestStableLogPath));
-
-        // Assuming there is only one index data file
-        JsonNode root = jsonNode.at("/content/root");
-        StringBuilder path = new StringBuilder();
-        while (root != null) {
-            path.append(root.get("name").asText()).append("/");
-            root = root.path("subDirs").get(0);
-        }
-        return new IndexLogEntry(path.toString(), null);
     }
 
     private List<IndexDataEntry> loadIndexData(String indexDataPath)
@@ -105,18 +92,6 @@ public class HyperspaceDataSkippingIndex {
         Domain range = Domain.create(ValueSet.ofRanges(Range.range(BigintType.BIGINT, minValue, true, maxValue, true)), false);
         Domain expression = predicate.getDomains().get().entrySet().iterator().next().getValue();
         return !expression.intersect(range).isNone();
-    }
-
-    static class IndexLogEntry
-    {
-        String logDataFilePath;
-        Map<String, String> sourceIdTracker; // file ID => source data file path
-
-        public IndexLogEntry(String logDataFilePath, Map<String, String> sourceIdTracker)
-        {
-            this.logDataFilePath = logDataFilePath;
-            this.sourceIdTracker = sourceIdTracker;
-        }
     }
 
     static class IndexDataEntry
