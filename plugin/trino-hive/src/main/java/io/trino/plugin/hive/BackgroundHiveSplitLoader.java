@@ -34,6 +34,7 @@ import io.trino.plugin.hive.metastore.Table;
 import io.trino.plugin.hive.util.HiveBucketing.BucketingVersion;
 import io.trino.plugin.hive.util.HiveBucketing.HiveBucketFilter;
 import io.trino.plugin.hive.util.HiveFileIterator;
+import io.trino.plugin.hive.util.HyperspaceDataSkippingIndex;
 import io.trino.plugin.hive.util.InternalHiveSplitFactory;
 import io.trino.plugin.hive.util.ResumableTask;
 import io.trino.plugin.hive.util.ResumableTasks;
@@ -780,7 +781,11 @@ public class BackgroundHiveSplitLoader
 
     private Iterator<InternalHiveSplit> createInternalHiveSplitIterator(Path path, FileSystem fileSystem, InternalHiveSplitFactory splitFactory, boolean splittable, Optional<AcidInfo> acidInfo)
     {
+        // Ideally, the index choose and predicate populate should be done in optimizer rule when logically planning
+        //HyperspaceDataSkippingIndex dataSkippingIndex = new HyperspaceDataSkippingIndex("orders-minmax", compactEffectivePredicate);
+
         return Streams.stream(new HiveFileIterator(table, path, fileSystem, directoryLister, namenodeStats, recursiveDirWalkerEnabled ? RECURSE : IGNORED, ignoreAbsentPartitions))
+                //.filter(file -> dataSkippingIndex.isSplitIncluded(file.getPath().toString()))
                 .map(status -> splitFactory.createInternalHiveSplit(status, OptionalInt.empty(), splittable, acidInfo))
                 .filter(Optional::isPresent)
                 .map(Optional::get)

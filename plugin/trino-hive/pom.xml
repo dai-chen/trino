@@ -18,6 +18,13 @@
     </properties>
 
     <dependencies>
+        <!--
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-hyperspace</artifactId>
+        </dependency>
+        -->
+
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-memory-context</artifactId>
@@ -143,6 +150,14 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!--
+        <dependency>
+            <groupId>com.fasterxml.jackson.module</groupId>
+            <artifactId>jackson-module-scala_2.12</artifactId>
+            <version>2.12.0</version>
+        </dependency>
+        -->
+
         <dependency>
             <groupId>com.google.cloud.bigdataoss</groupId>
             <artifactId>gcs-connector</artifactId>
@@ -199,6 +214,14 @@
             <groupId>com.linkedin.coral</groupId>
             <artifactId>coral-trino</artifactId>
         </dependency>
+
+        <!--
+        <dependency>
+            <groupId>com.microsoft.hyperspace</groupId>
+            <artifactId>hyperspace-core_2.12</artifactId>
+            <version>0.5.0-SNAPSHOT</version>
+        </dependency>
+        -->
 
         <dependency>
             <groupId>com.qubole.rubix</groupId>
