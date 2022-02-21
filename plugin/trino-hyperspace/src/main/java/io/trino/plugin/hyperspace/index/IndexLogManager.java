@@ -41,27 +41,17 @@ public class IndexLogManager
         String latestStableLogPath = indexPath.toString() + "/_hyperspace_log/latestStable";
         JsonNode root = MAPPER.readTree(new File(latestStableLogPath));
 
-        String logDataFilePath = parseContent(root.at("/content/root"));
+        Map<String, String> indexIdTracker = new HashMap<>();
+        parseContent(root.at("/content/root"), new ArrayList<>(), indexIdTracker);
 
-        Map<String, String> idTracker = new HashMap<>();
+        Map<String, String> sourceIdTracker = new HashMap<>();
         root.at("/source/plan/properties/relations").forEach(relation ->
-                parseSource(relation.at("/data/properties/content/root"), new ArrayList<>(), idTracker));
+                parseContent(relation.at("/data/properties/content/root"), new ArrayList<>(), sourceIdTracker));
 
-        return new IndexLogEntry(logDataFilePath, idTracker);
+        return new IndexLogEntry(indexIdTracker, sourceIdTracker);
     }
 
-    // Assuming there is only one index data file
-    private String parseContent(JsonNode root)
-    {
-        StringBuilder path = new StringBuilder();
-        while (root != null) {
-            path.append(root.get("name").asText()).append("/");
-            root = root.path("subDirs").get(0);
-        }
-        return path.toString();
-    }
-
-    private void parseSource(JsonNode root, List<String> path, Map<String, String> idTracker)
+    private void parseContent(JsonNode root, List<String> path, Map<String, String> idTracker)
     {
         if (root == null) {
             return;
@@ -70,18 +60,18 @@ public class IndexLogManager
         path.add(root.get("name").asText());
         root.get("files").forEach(file ->
                 idTracker.put(file.get("id").asText(), String.join("/", path) + "/" + file.get("name").asText()));
-        root.get("subDirs").forEach(subDir -> parseSource(subDir, path, idTracker));
+        root.get("subDirs").forEach(subDir -> parseContent(subDir, path, idTracker));
         path.remove(path.size() - 1);
     }
 
     public static class IndexLogEntry
     {
-        String logDataFilePath;
-        Map<String, String> sourceIdTracker; // file ID => source data file path
+        final Map<String, String> indexIdTracker; // file DI => index data file path
+        final Map<String, String> sourceIdTracker; // file ID => source data file path
 
-        public IndexLogEntry(String logDataFilePath, Map<String, String> sourceIdTracker)
+        public IndexLogEntry(Map<String, String> indexIdTracker, Map<String, String> sourceIdTracker)
         {
-            this.logDataFilePath = logDataFilePath;
+            this.indexIdTracker = indexIdTracker;
             this.sourceIdTracker = sourceIdTracker;
         }
     }
