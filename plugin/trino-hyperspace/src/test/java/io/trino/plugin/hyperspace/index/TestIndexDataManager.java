@@ -31,8 +31,9 @@ import static org.testng.Assert.assertEquals;
 
 public class TestIndexDataManager
 {
-    private final Path indexPath = new File(
-            "src/test/resources/orders-minmax/v__=0/part-00000-0ddc1a94-ade4-48b6-910a-3c521a415aa4-c000.snappy.parquet").toPath();
+    private final Path indexPath = Path.of(
+            "src/test/resources/orders-minmax/v__=0/part-00000-0ddc1a94-ade4-48b6-910a-3c521a415aa4-c000.snappy.parquet")
+            .toAbsolutePath();
 
     @Test
     public void testGetAllIndexData()

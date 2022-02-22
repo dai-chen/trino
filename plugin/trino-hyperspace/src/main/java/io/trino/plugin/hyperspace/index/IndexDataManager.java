@@ -13,7 +13,6 @@
  */
 package io.trino.plugin.hyperspace.index;
 
-import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
@@ -33,9 +32,9 @@ import java.util.Objects;
 
 public class IndexDataManager
 {
-    private final TupleDomain<ColumnHandle> predicate;
+    private final TupleDomain<?> predicate;
 
-    public IndexDataManager(TupleDomain<ColumnHandle> predicate)
+    public IndexDataManager(TupleDomain<?> predicate)
     {
         this.predicate = predicate;
     }
@@ -45,7 +44,7 @@ public class IndexDataManager
     {
         try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(
                 HadoopInputFile.fromPath(
-                        new org.apache.hadoop.fs.Path(indexPath.toAbsolutePath().toString()),
+                        new org.apache.hadoop.fs.Path(indexPath.toString()),
                         new Configuration())).build()) {
             Map<Long, IndexDataEntry> indexData = new HashMap<>();
             GenericRecord record;

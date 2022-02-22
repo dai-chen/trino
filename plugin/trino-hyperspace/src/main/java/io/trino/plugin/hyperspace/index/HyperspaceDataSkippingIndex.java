@@ -13,19 +13,14 @@
  */
 package io.trino.plugin.hyperspace.index;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.trino.spi.connector.ColumnHandle;
-import io.trino.spi.predicate.Domain;
-import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
-import io.trino.spi.predicate.ValueSet;
-import io.trino.spi.type.BigintType;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static io.trino.plugin.hyperspace.index.IndexLogManager.IndexLogEntry;
 
@@ -34,85 +29,35 @@ import static io.trino.plugin.hyperspace.index.IndexLogManager.IndexLogEntry;
  */
 public class HyperspaceDataSkippingIndex
 {
-    private static final String INDEX_REPOSITORY = "/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes";
-
-    private final Set<String> includedDataFiles;
+    private final Set<Path> includedDataFiles;
 
     /**
-     * @param indexName index name
+     * @param indexRootPath index root folder path
      * @param predicate predicate on the indexed column
      */
-    public HyperspaceDataSkippingIndex(String indexName, TupleDomain<? extends ColumnHandle> predicate)
+    public HyperspaceDataSkippingIndex(Path indexRootPath, TupleDomain<?> predicate)
     {
         try {
-            Path indexPath = Paths.get(INDEX_REPOSITORY, indexName);
-            IndexLogManager indexLogManager = new IndexLogManager(indexPath);
+            IndexLogManager indexLogManager = new IndexLogManager(indexRootPath);
             IndexLogEntry indexLogEntry = indexLogManager.getLatestStableLog();
-            List<IndexDataEntry> indexDataEntries = null;//loadIndexData(indexLogEntry.logDataFilePath);
-            this.includedDataFiles = skipSourceDataFiles(indexLogEntry, indexDataEntries, predicate);
+
+            this.includedDataFiles = new HashSet<>();
+            IndexDataManager indexDataManager = new IndexDataManager(predicate);
+            for (Map.Entry<Long, String> entry : indexLogEntry.indexIdTracker.entrySet()) {
+                Path indexFilePath = Path.of(entry.getValue());
+                indexDataManager.getIndexData(indexFilePath).keySet().stream()
+                        .map(indexLogEntry.sourceIdTracker::get)
+                        .map(Path::of)
+                        .forEach(includedDataFiles::add);
+            }
         }
-        catch (Throwable e) {
-            e.printStackTrace();
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public boolean isSplitIncluded(String filePath) {
-        return includedDataFiles.contains(filePath);
-    }
-
-    private List<IndexDataEntry> loadIndexData(String indexDataPath)
+    public boolean isDataFileIncluded(Path dataFilePath)
     {
-        //AvroParquetReader
-        return null;
-    }
-
-    private void parseIndexLogEntry(JsonNode node, List<IndexDataEntry> results)
-    {
-    }
-
-    private Set<String> skipSourceDataFiles(IndexLogEntry indexLogEntry, List<IndexDataEntry> indexDataEntries,
-                                            TupleDomain<? extends ColumnHandle> predicate)
-    {
-        return indexDataEntries.stream()
-                .map(index -> new SourceIndex(
-                        indexLogEntry.sourceIdTracker.get(index.dataFileId),
-                        index.minValue, index.maxValue))
-                .filter(sourceIndex -> evaluatePredicate(predicate, sourceIndex))
-                .map(sourceIndex -> sourceIndex.sourceDataFilePath)
-                .collect(Collectors.toSet());
-    }
-
-    // ((Domain) ((Collections.UnmodifiableMap.UnmodifiableEntrySet.UnmodifiableEntry)((Collections.UnmodifiableMap)predicate.domains.value).entrySet().toArray()[1]).getValue())
-    // .contains(Domain.singleValue(BigintType.BIGINT, 1L))
-    private boolean evaluatePredicate(TupleDomain<? extends ColumnHandle> predicate, SourceIndex sourceIndex)
-    {
-        long minValue = Long.parseLong(sourceIndex.minValue);
-        long maxValue = Long.parseLong(sourceIndex.maxValue);
-        Domain range = Domain.create(ValueSet.ofRanges(Range.range(BigintType.BIGINT, minValue, true, maxValue, true)), false);
-        Domain expression = predicate.getDomains().get().entrySet().iterator().next().getValue();
-        return !expression.intersect(range).isNone();
-    }
-
-    static class IndexDataEntry
-    {
-        String dataFileId;
-        String partitionName;
-        String minValue;
-        String maxValue;
-    }
-
-    static class SourceIndex
-    {
-        String sourceDataFilePath;
-        String minValue;
-        String maxValue;
-
-        SourceIndex(String sourceDataFilePath, String minValue, String maxValue)
-        {
-            this.sourceDataFilePath = sourceDataFilePath;
-            this.minValue = minValue;
-            this.maxValue = maxValue;
-        }
+        return includedDataFiles.contains(dataFilePath);
     }
 }
