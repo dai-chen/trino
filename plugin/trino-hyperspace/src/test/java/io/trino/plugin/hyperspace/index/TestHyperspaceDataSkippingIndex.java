@@ -14,7 +14,6 @@
 package io.trino.plugin.hyperspace.index;
 
 import com.google.common.collect.ImmutableMap;
-import io.trino.plugin.hyperspace.index.HyperspaceDataSkippingIndex;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.Range;

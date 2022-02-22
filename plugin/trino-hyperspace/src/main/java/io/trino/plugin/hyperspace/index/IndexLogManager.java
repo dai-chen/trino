@@ -41,17 +41,17 @@ public class IndexLogManager
         String latestStableLogPath = indexPath.toString() + "/_hyperspace_log/latestStable";
         JsonNode root = MAPPER.readTree(new File(latestStableLogPath));
 
-        Map<String, String> indexIdTracker = new HashMap<>();
+        Map<Long, String> indexIdTracker = new HashMap<>();
         parseContent(root.at("/content/root"), new ArrayList<>(), indexIdTracker);
 
-        Map<String, String> sourceIdTracker = new HashMap<>();
+        Map<Long, String> sourceIdTracker = new HashMap<>();
         root.at("/source/plan/properties/relations").forEach(relation ->
                 parseContent(relation.at("/data/properties/content/root"), new ArrayList<>(), sourceIdTracker));
 
         return new IndexLogEntry(indexIdTracker, sourceIdTracker);
     }
 
-    private void parseContent(JsonNode root, List<String> path, Map<String, String> idTracker)
+    private void parseContent(JsonNode root, List<String> path, Map<Long, String> idTracker)
     {
         if (root == null) {
             return;
@@ -59,21 +59,20 @@ public class IndexLogManager
 
         path.add(root.get("name").asText());
         root.get("files").forEach(file ->
-                idTracker.put(file.get("id").asText(), String.join("/", path) + "/" + file.get("name").asText()));
+                idTracker.put(file.get("id").asLong(), String.join("/", path) + "/" + file.get("name").asText()));
         root.get("subDirs").forEach(subDir -> parseContent(subDir, path, idTracker));
         path.remove(path.size() - 1);
     }
 
     public static class IndexLogEntry
     {
-        final Map<String, String> indexIdTracker; // file DI => index data file path
-        final Map<String, String> sourceIdTracker; // file ID => source data file path
+        final Map<Long, String> indexIdTracker; // file ID => index data file path
+        final Map<Long, String> sourceIdTracker; // file ID => source data file path
 
-        public IndexLogEntry(Map<String, String> indexIdTracker, Map<String, String> sourceIdTracker)
+        public IndexLogEntry(Map<Long, String> indexIdTracker, Map<Long, String> sourceIdTracker)
         {
             this.indexIdTracker = indexIdTracker;
             this.sourceIdTracker = sourceIdTracker;
         }
     }
-
 }
