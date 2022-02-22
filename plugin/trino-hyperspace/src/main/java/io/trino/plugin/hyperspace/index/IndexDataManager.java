@@ -14,7 +14,11 @@
 package io.trino.plugin.hyperspace.index;
 
 import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.predicate.Domain;
+import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.predicate.ValueSet;
+import io.trino.spi.type.BigintType;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetReader;
@@ -49,10 +53,22 @@ public class IndexDataManager
                 long sourceFileId = (long) record.get("_data_file_id");
                 long minValue = (long) record.get("MinMax_orderkey__0"); // TODO: remove hardcoding name and type
                 long maxValue = (long) record.get("MinMax_orderkey__1");
-                indexData.put(sourceFileId, new IndexDataEntry(sourceFileId, minValue, maxValue));
+
+                IndexDataEntry entry = new IndexDataEntry(sourceFileId, minValue, maxValue);
+                if (isPredicateTrue(entry)) {
+                    indexData.put(sourceFileId, entry);
+                }
             }
             return indexData;
         }
+    }
+
+    private boolean isPredicateTrue(IndexDataEntry entry)
+    {
+        Domain range = Domain.create(ValueSet.ofRanges(
+                Range.range(BigintType.BIGINT, entry.minValue, true, entry.maxValue, true)), false);
+        Domain expression = predicate.getDomains().get().entrySet().iterator().next().getValue();
+        return !expression.intersect(range).isNone();
     }
 
     public static class IndexDataEntry

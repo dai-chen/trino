@@ -38,7 +38,11 @@ public class TestIndexDataManager
     public void testGetAllIndexData()
             throws IOException
     {
-        IndexDataManager indexDataManager = new IndexDataManager(TupleDomain.all());
+        TupleDomain<ColumnHandle> predicate = TupleDomain.withColumnDomains(ImmutableMap.of(
+                new ColumnHandle() {},
+                Domain.create(ValueSet.ofRanges(Range.lessThanOrEqual(BigintType.BIGINT, 4L)), false)));
+
+        IndexDataManager indexDataManager = new IndexDataManager(predicate);
         assertEquals(indexDataManager.getIndexData(indexPath), ImmutableMap.of(
                 0L, new IndexDataEntry(0, 4, 4),
                 1L, new IndexDataEntry(1, 2, 2),
@@ -56,7 +60,7 @@ public class TestIndexDataManager
 
         IndexDataManager indexDataManager = new IndexDataManager(predicate);
         assertEquals(indexDataManager.getIndexData(indexPath), ImmutableMap.of(
-                3, new IndexDataEntry(3, 3, 3),
-                0, new IndexDataEntry(0, 4, 4)));
+                3L, new IndexDataEntry(3, 3, 3),
+                0L, new IndexDataEntry(0, 4, 4)));
     }
 }
