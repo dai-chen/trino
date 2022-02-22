@@ -13,6 +13,8 @@
  */
 package io.trino.plugin.hyperspace.index;
 
+import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.predicate.TupleDomain;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetReader;
@@ -21,40 +23,72 @@ import org.apache.parquet.hadoop.util.HadoopInputFile;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.Objects;
 
 public class IndexDataManager
 {
-    public IndexDataEntry load(Path indexPath, Predicate<Statistics> predicate)
+    private final TupleDomain<ColumnHandle> predicate;
+
+    public IndexDataManager(TupleDomain<ColumnHandle> predicate)
+    {
+        this.predicate = predicate;
+    }
+
+    public Map<Long, IndexDataEntry> getIndexData(Path indexPath)
             throws IOException
     {
         try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(
                 HadoopInputFile.fromPath(
                         new org.apache.hadoop.fs.Path(indexPath.toAbsolutePath().toString()),
                         new Configuration())).build()) {
+            Map<Long, IndexDataEntry> indexData = new HashMap<>();
             GenericRecord record;
             while ((record = reader.read()) != null) {
-                System.out.println(record);
+                long sourceFileId = (long) record.get("_data_file_id");
+                long minValue = (long) record.get("MinMax_orderkey__0"); // TODO: remove hardcoding name and type
+                long maxValue = (long) record.get("MinMax_orderkey__1");
+                indexData.put(sourceFileId, new IndexDataEntry(sourceFileId, minValue, maxValue));
             }
-            return null;
+            return indexData;
         }
     }
 
     public static class IndexDataEntry
     {
-        final Map<Long, Statistics> index;
+        final long sourceFileId;
+        final long minValue;
+        final long maxValue;
 
-        public IndexDataEntry(Map<Long, Statistics> index) {
-            this.index = index;
+        public IndexDataEntry(long sourceFileId, long minValue, long maxValue)
+        {
+            this.sourceFileId = sourceFileId;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
         }
-    }
 
-    // assuming source always partitioned
-    public static class Statistics
-    {
-        String partitionName;
-        String minValue;
-        String maxValue;
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IndexDataEntry that = (IndexDataEntry) o;
+            return sourceFileId == that.sourceFileId && minValue == that.minValue && maxValue == that.maxValue;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sourceFileId, minValue, maxValue);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "IndexDataEntry{" +
+                    "sourceFileId=" + sourceFileId +
+                    ", minValue=" + minValue +
+                    ", maxValue=" + maxValue +
+                    '}';
+        }
     }
 }

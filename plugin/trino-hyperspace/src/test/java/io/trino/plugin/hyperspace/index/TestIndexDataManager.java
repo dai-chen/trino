@@ -13,25 +13,50 @@
  */
 package io.trino.plugin.hyperspace.index;
 
+import com.google.common.collect.ImmutableMap;
+import io.trino.plugin.hyperspace.index.IndexDataManager.IndexDataEntry;
+import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.predicate.Domain;
+import io.trino.spi.predicate.Range;
+import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.predicate.ValueSet;
+import io.trino.spi.type.BigintType;
 import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
 
 public class TestIndexDataManager
 {
     private final Path indexPath = new File(
             "src/test/resources/orders-minmax/v__=0/part-00000-0ddc1a94-ade4-48b6-910a-3c521a415aa4-c000.snappy.parquet").toPath();
 
-    private final IndexDataManager indexDataManager = new IndexDataManager();
-
     @Test
-    public void testLoad()
+    public void testGetAllIndexData()
             throws IOException
     {
-        indexDataManager.load(indexPath, null);
+        IndexDataManager indexDataManager = new IndexDataManager(TupleDomain.all());
+        assertEquals(indexDataManager.getIndexData(indexPath), ImmutableMap.of(
+                0L, new IndexDataEntry(0, 4, 4),
+                1L, new IndexDataEntry(1, 2, 2),
+                2L, new IndexDataEntry(2, 1, 1),
+                3L, new IndexDataEntry(3, 3, 3)));
+    }
+
+    @Test
+    public void testGetIndexDataFiltered()
+            throws IOException
+    {
+        TupleDomain<ColumnHandle> predicate = TupleDomain.withColumnDomains(ImmutableMap.of(
+                new ColumnHandle() {},
+                Domain.create(ValueSet.ofRanges(Range.greaterThan(BigintType.BIGINT, 2L)), false)));
+
+        IndexDataManager indexDataManager = new IndexDataManager(predicate);
+        assertEquals(indexDataManager.getIndexData(indexPath), ImmutableMap.of(
+                3, new IndexDataEntry(3, 3, 3),
+                0, new IndexDataEntry(0, 4, 4)));
     }
 }
