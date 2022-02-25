@@ -124,6 +124,7 @@
         <module>plugin/trino-hive</module>
         <module>plugin/trino-hive-hadoop2</module>
         <module>plugin/trino-http-event-listener</module>
+        <module>plugin/trino-hyperspace</module>
         <module>plugin/trino-iceberg</module>
         <module>plugin/trino-jmx</module>
         <module>plugin/trino-kafka</module>
@@ -167,7 +168,6 @@
         <module>testing/trino-testing-kafka</module>
         <module>testing/trino-testing-services</module>
         <module>testing/trino-tests</module>
-        <module>plugin/trino-hyperspace</module>
     </modules>
 
     <repositories>
@@ -273,6 +273,12 @@
             <dependency>
                 <groupId>io.trino</groupId>
                 <artifactId>trino-hive-hadoop2</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-hyperspace</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

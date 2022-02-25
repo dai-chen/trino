@@ -23,7 +23,6 @@ import io.trino.spi.predicate.ValueSet;
 import io.trino.spi.type.BigintType;
 import org.testng.annotations.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 

@@ -17,7 +17,7 @@ import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.predicate.ValueSet;
-import io.trino.spi.type.BigintType;
+import io.trino.spi.type.DecimalType;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetReader;
@@ -45,13 +45,14 @@ public class IndexDataManager
         try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(
                 HadoopInputFile.fromPath(
                         new org.apache.hadoop.fs.Path(indexPath.toString()),
-                        new Configuration())).build()) {
+                        new Configuration(false)))
+                .build()) {
             Map<Long, IndexDataEntry> indexData = new HashMap<>();
             GenericRecord record;
             while ((record = reader.read()) != null) {
                 long sourceFileId = (long) record.get("_data_file_id");
-                long minValue = (long) record.get("MinMax_orderkey__0"); // TODO: remove hardcoding name and type
-                long maxValue = (long) record.get("MinMax_orderkey__1");
+                long minValue = (long) record.get("MinMax_l_extendedprice__0"); // TODO: remove hardcoding name and type
+                long maxValue = (long) record.get("MinMax_l_extendedprice__1");
 
                 IndexDataEntry entry = new IndexDataEntry(sourceFileId, minValue, maxValue);
                 if (isPredicateTrue(entry)) {
@@ -65,7 +66,7 @@ public class IndexDataManager
     private boolean isPredicateTrue(IndexDataEntry entry)
     {
         Domain range = Domain.create(ValueSet.ofRanges(
-                Range.range(BigintType.BIGINT, entry.minValue, true, entry.maxValue, true)), false);
+                Range.range(DecimalType.createDecimalType(12, 2), entry.minValue, true, entry.maxValue, true)), false);
         Domain expression = predicate.getDomains().get().entrySet().iterator().next().getValue();
         return !expression.intersect(range).isNone();
     }
@@ -84,15 +85,21 @@ public class IndexDataManager
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+        public boolean equals(Object o)
+        {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             IndexDataEntry that = (IndexDataEntry) o;
             return sourceFileId == that.sourceFileId && minValue == that.minValue && maxValue == that.maxValue;
         }
 
         @Override
-        public int hashCode() {
+        public int hashCode()
+        {
             return Objects.hash(sourceFileId, minValue, maxValue);
         }
 

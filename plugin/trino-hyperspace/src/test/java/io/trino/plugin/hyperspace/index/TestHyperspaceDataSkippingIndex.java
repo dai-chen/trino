@@ -20,6 +20,7 @@ import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.predicate.ValueSet;
 import io.trino.spi.type.BigintType;
+import io.trino.spi.type.DecimalType;
 import org.testng.annotations.Test;
 
 import java.nio.file.Path;
@@ -41,7 +42,7 @@ public class TestHyperspaceDataSkippingIndex
 {
     private static final Path INDEX_ROOT_PATH = Path.of("src/test/resources/orders-minmax").toAbsolutePath();
 
-    private final static ColumnHandle COLUMN_HANDLE = new ColumnHandle() {};
+    private static final ColumnHandle COLUMN_HANDLE = new ColumnHandle() {};
 
     @Test
     public void testIsSplitIncludedWithEqualityPredicate()
@@ -69,5 +70,17 @@ public class TestHyperspaceDataSkippingIndex
         assertTrue(index.isDataFileIncluded(Path.of("file://Users/daichen/Temp/orders/region=US/part-00002-dd26df1d-8bd4-4757-aa49-47d3a6bd8678.c000.snappy.parquet")));
         assertTrue(index.isDataFileIncluded(Path.of("file://Users/daichen/Temp/orders/region=US/part-00003-dd26df1d-8bd4-4757-aa49-47d3a6bd8678.c000.snappy.parquet")));
         assertTrue(index.isDataFileIncluded(Path.of("file://Users/daichen/Temp/orders/region=EU/part-00000-dd26df1d-8bd4-4757-aa49-47d3a6bd8678.c000.snappy.parquet")));
+    }
+
+    @Test
+    public void test()
+    {
+        TupleDomain<ColumnHandle> predicate = TupleDomain.withColumnDomains(ImmutableMap.of(
+                COLUMN_HANDLE,
+                Domain.create(ValueSet.ofRanges(Range.lessThan(DecimalType.createDecimalType(12, 2), 90100L)), false)));
+        HyperspaceDataSkippingIndex index = new HyperspaceDataSkippingIndex(
+                Path.of("/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch-q6-price-minmax"),
+                predicate);
+        index.isDataFileIncluded(Path.of("file://Users/daichen/Temp/orders"));
     }
 }

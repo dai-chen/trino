@@ -41,14 +41,20 @@ public class IndexLogManager
         String latestStableLogPath = indexPath.toString() + "/_hyperspace_log/latestStable";
         JsonNode root = MAPPER.readTree(new File(latestStableLogPath));
 
-        Map<Long, String> indexIdTracker = new HashMap<>();
-        parseContent(root.at("/content/root"), new ArrayList<>(), indexIdTracker);
+        Map<Long, String> indexIdTracker = parseContent(root.at("/content/root/subDirs"));
 
         Map<Long, String> sourceIdTracker = new HashMap<>();
         root.at("/source/plan/properties/relations").forEach(relation ->
-                parseContent(relation.at("/data/properties/content/root"), new ArrayList<>(), sourceIdTracker));
-
+                sourceIdTracker.putAll(parseContent(relation.at("/data/properties/content/root/subDirs"))));
         return new IndexLogEntry(indexIdTracker, sourceIdTracker);
+    }
+
+    // Accept subDirs to skip root name "file:/" which fails Path.equals
+    private Map<Long, String> parseContent(JsonNode subDirs)
+    {
+        Map<Long, String> idTracker = new HashMap<>();
+        subDirs.forEach(subDir -> parseContent(subDir, new ArrayList<>(), idTracker));
+        return idTracker;
     }
 
     private void parseContent(JsonNode root, List<String> path, Map<Long, String> idTracker)
@@ -59,7 +65,7 @@ public class IndexLogManager
 
         path.add(root.get("name").asText());
         root.get("files").forEach(file ->
-                idTracker.put(file.get("id").asLong(), String.join("/", path) + "/" + file.get("name").asText()));
+                idTracker.put(file.get("id").asLong(), "/" + String.join("/", path) + "/" + file.get("name").asText()));
         root.get("subDirs").forEach(subDir -> parseContent(subDir, path, idTracker));
         path.remove(path.size() - 1);
     }
