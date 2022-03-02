@@ -37,7 +37,6 @@ import io.trino.plugin.hive.util.HiveFileIterator;
 import io.trino.plugin.hive.util.InternalHiveSplitFactory;
 import io.trino.plugin.hive.util.ResumableTask;
 import io.trino.plugin.hive.util.ResumableTasks;
-import io.trino.plugin.hyperspace.index.HyperspaceDataSkippingIndex;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorSession;
@@ -63,7 +62,6 @@ import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapreduce.MRConfig;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
@@ -190,8 +188,6 @@ public class BackgroundHiveSplitLoader
     private Stopwatch stopwatch;
     private volatile boolean stopped;
 
-    private final HyperspaceDataSkippingIndex hyperspaceDataSkippingIndex;
-
     public BackgroundHiveSplitLoader(
             Table table,
             AcidTransaction transaction,
@@ -234,11 +230,6 @@ public class BackgroundHiveSplitLoader
         this.hdfsContext = new HdfsContext(session);
         this.validWriteIds = requireNonNull(validWriteIds, "validWriteIds is null");
         this.maxSplitFileSize = requireNonNull(maxSplitFileSize, "maxSplitFileSize is null");
-
-        // Ideally, the index choose and predicate populate should be done in optimizer rule when logically planning
-        this.hyperspaceDataSkippingIndex = new HyperspaceDataSkippingIndex(
-            java.nio.file.Path.of("/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch-q6-price-minmax"),
-            compactEffectivePredicate);
     }
 
     @Override
@@ -790,7 +781,6 @@ public class BackgroundHiveSplitLoader
     private Iterator<InternalHiveSplit> createInternalHiveSplitIterator(Path path, FileSystem fileSystem, InternalHiveSplitFactory splitFactory, boolean splittable, Optional<AcidInfo> acidInfo)
     {
         return Streams.stream(new HiveFileIterator(table, path, fileSystem, directoryLister, namenodeStats, recursiveDirWalkerEnabled ? RECURSE : IGNORED, ignoreAbsentPartitions))
-                .filter(file -> hyperspaceDataSkippingIndex.isDataFileIncluded(new File(file.getPath().toUri()).toPath()))
                 .map(status -> splitFactory.createInternalHiveSplit(status, OptionalInt.empty(), splittable, acidInfo))
                 .filter(Optional::isPresent)
                 .map(Optional::get)

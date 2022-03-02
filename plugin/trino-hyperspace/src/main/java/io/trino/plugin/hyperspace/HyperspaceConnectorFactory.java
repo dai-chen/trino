@@ -13,9 +13,12 @@
  */
 package io.trino.plugin.hyperspace;
 
+import io.trino.plugin.hyperspace.metadata.HyperspaceMetadata;
 import io.trino.spi.connector.Connector;
 import io.trino.spi.connector.ConnectorContext;
 import io.trino.spi.connector.ConnectorFactory;
+import io.trino.spi.connector.ConnectorMetadata;
+import io.trino.spi.connector.ConnectorTransactionHandle;
 
 import java.util.Map;
 
@@ -31,6 +34,13 @@ public class HyperspaceConnectorFactory
     @Override
     public Connector create(String catalogName, Map<String, String> config, ConnectorContext context)
     {
-        return null;
+        return new Connector()
+        {
+            @Override
+            public ConnectorMetadata getMetadata(ConnectorTransactionHandle transactionHandle)
+            {
+                return new HyperspaceMetadata();
+            }
+        };
     }
 }
