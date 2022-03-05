@@ -13,9 +13,7 @@
  */
 package io.trino.connector.system;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import io.trino.spi.connector.ColumnMetadata;
+import io.trino.metadata.MetadataUtil.TableMetadataBuilder;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableMetadata;
 import io.trino.spi.connector.ConnectorTransactionHandle;
@@ -24,30 +22,21 @@ import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SystemTable;
 import io.trino.spi.predicate.TupleDomain;
-import io.trino.spi.type.Type;
 
-import java.util.Optional;
-
-import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 
 public class SecondaryIndexSystemTable
         implements SystemTable
 {
     private static final ConnectorTableMetadata TABLE_DEFINITION = TableMetadataBuilder.tableMetadataBuilder(
-            new SchemaTableName("metadata", "index"))
+            new SchemaTableName("metadata", "indexes"))
             .column("catalog_name", createUnboundedVarcharType())
             .column("schema_name", createUnboundedVarcharType())
-            .column("name", createUnboundedVarcharType())
-            // .column("storage_catalog", createUnboundedVarcharType())
-            // .column("storage_schema", createUnboundedVarcharType())
-            // .column("storage_table", createUnboundedVarcharType())
-            .column("is_fresh", BOOLEAN)
-            // .column("comment", createUnboundedVarcharType())
-            // .column("definition", createUnboundedVarcharType())
-            .column("index_location", createUnboundedVarcharType())
-            .column("index_type", createUnboundedVarcharType())
+            .column("table_name", createUnboundedVarcharType())
             .column("indexed_column", createUnboundedVarcharType())
+            //.column("is_fresh", BOOLEAN)
+            .column("index_location", createUnboundedVarcharType())
+            //.column("index_type", createUnboundedVarcharType())
             .build();
 
     @Override
@@ -67,57 +56,9 @@ public class SecondaryIndexSystemTable
                                ConnectorSession session,
                                TupleDomain<Integer> constraint)
     {
-        return InMemoryRecordSet.builder(getTableMetadata()).build().cursor();
-    }
-
-    public static class TableMetadataBuilder
-    {
-        public static TableMetadataBuilder tableMetadataBuilder(SchemaTableName tableName)
-        {
-            return new TableMetadataBuilder(tableName);
-        }
-
-        private final SchemaTableName tableName;
-        private final ImmutableList.Builder<ColumnMetadata> columns = ImmutableList.builder();
-        private final ImmutableMap.Builder<String, Object> properties = ImmutableMap.builder();
-        private final Optional<String> comment;
-
-        private TableMetadataBuilder(SchemaTableName tableName)
-        {
-            this(tableName, Optional.empty());
-        }
-
-        private TableMetadataBuilder(SchemaTableName tableName, Optional<String> comment)
-        {
-            this.tableName = tableName;
-            this.comment = comment;
-        }
-
-        public TableMetadataBuilder column(String columnName, Type type)
-        {
-            columns.add(new ColumnMetadata(columnName, type));
-            return this;
-        }
-
-        public TableMetadataBuilder hiddenColumn(String columnName, Type type)
-        {
-            columns.add(ColumnMetadata.builder()
-                    .setName(columnName)
-                    .setType(type)
-                    .setHidden(true)
-                    .build());
-            return this;
-        }
-
-        public TableMetadataBuilder property(String name, Object value)
-        {
-            properties.put(name, value);
-            return this;
-        }
-
-        public ConnectorTableMetadata build()
-        {
-            return new ConnectorTableMetadata(tableName, columns.build(), properties.build(), comment);
-        }
+        return InMemoryRecordSet.builder(getTableMetadata())
+                .addRow("hive", "tpch10g", "lineitem", "l_extendedprice",
+                        "/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch-q6-price-minmax")
+                .build().cursor();
     }
 }

@@ -15,13 +15,16 @@ package io.trino.connector.system;
 
 import com.google.common.collect.ImmutableSet;
 import io.trino.spi.connector.ConnectorMetadata;
+import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTransactionHandle;
+import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SystemTable;
 import io.trino.spi.procedure.Procedure;
 import io.trino.spi.transaction.IsolationLevel;
 import io.trino.transaction.InternalConnector;
 import io.trino.transaction.TransactionId;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
@@ -49,7 +52,16 @@ public class GlobalSystemConnector
     @Override
     public ConnectorMetadata getMetadata(ConnectorTransactionHandle transactionHandle)
     {
-        return new ConnectorMetadata() {};
+        return new ConnectorMetadata()
+        {
+            @Override
+            public Optional<SystemTable> getSystemTable(ConnectorSession session, SchemaTableName tableName)
+            {
+                return systemTables.stream()
+                        .filter(table -> table.getTableMetadata().getTable().equals(tableName))
+                        .findFirst();
+            }
+        };
     }
 
     @Override

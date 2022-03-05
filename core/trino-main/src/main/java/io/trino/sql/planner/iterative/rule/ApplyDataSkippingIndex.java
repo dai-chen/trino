@@ -19,7 +19,12 @@ import io.airlift.slice.Slices;
 import io.trino.Session;
 import io.trino.index.dataskipping.DataSkippingIndex;
 import io.trino.metadata.Metadata;
+import io.trino.metadata.QualifiedObjectName;
+import io.trino.metadata.TableHandle;
+import io.trino.metadata.TableSchema;
 import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.connector.RecordCursor;
+import io.trino.spi.connector.SystemTable;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.type.Type;
@@ -59,7 +64,7 @@ public class ApplyDataSkippingIndex
         for (Map.Entry<ColumnHandle, Domain> entry : currentDomain.getDomains().get().entrySet()) {
             ColumnHandle column = entry.getKey();
             Domain predicate = entry.getValue();
-            Optional<Path> indexLocation = getIndexLocation(node, column);
+            Optional<Path> indexLocation = getIndexLocation(session, metadata, node, column);
             if (indexLocation.isPresent()) {
                 pathDomain = pathDomain.intersect(getPathDomainForDomain(indexLocation.get(), column, predicate, type));
             }
@@ -72,10 +77,28 @@ public class ApplyDataSkippingIndex
         return TupleDomain.withColumnDomains(Collections.singletonMap(pathColumnHandle, pathDomain));
     }
 
-    private static Optional<Path> getIndexLocation(TableScanNode node, ColumnHandle column)
+    private static Optional<Path> getIndexLocation(Session session, Metadata metadata, TableScanNode node, ColumnHandle column)
     {
-        // TODO: determine if any index on the column and find its location by system metadata table
-        return Optional.of(Path.of("/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch-q6-price-minmax"));
+        QualifiedObjectName indexTableName = QualifiedObjectName.valueOf("system.metadata.indexes");
+        SystemTable indexTable = metadata.getSystemTable(session, indexTableName).get();
+        TableHandle indexTableHandle = metadata.getTableHandle(session, indexTableName).get();
+
+        TableHandle tableHandle = node.getTable();
+        TableSchema tableSchema = metadata.getTableSchema(session, tableHandle);
+
+        RecordCursor cursor = indexTable.cursor(indexTableHandle.getTransaction(), session.toConnectorSession(), TupleDomain.all());
+        while (cursor.advanceNextPosition()) {
+            String catalogName = (String) cursor.getObject(0);
+            String schemaName = (String) cursor.getObject(1);
+            String tableName = (String) cursor.getObject(2);
+            String columnName = (String) cursor.getObject(3);
+
+            QualifiedObjectName indexedTableName = new QualifiedObjectName(catalogName, schemaName, tableName);
+            if (indexedTableName.equals(tableSchema.getQualifiedName()) && column.toString().startsWith(columnName + ":")) { // HiveColumnHandle.toString
+                return Optional.of(Path.of((String) cursor.getObject(4)));
+            }
+        }
+        return Optional.empty();
     }
 
     private static Domain getPathDomainForDomain(Path indexLocation, ColumnHandle column, Domain predicate, Type type)
@@ -84,7 +107,7 @@ public class ApplyDataSkippingIndex
         List<Slice> pathList = dataSkippingIndex.getAllIncludeDataFiles()
                 .stream()
                 .map(path -> Slices.utf8Slice(getPath(path))).collect(Collectors.toList());
-        return Domain.multipleValues(type, pathList);
+        return Domain.multipleValues(type, pathList); // TODO: handle pathList empty
     }
 
     private static String getPath(Path path)
