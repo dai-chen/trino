@@ -23,7 +23,6 @@ import io.trino.sql.planner.plan.PlanNode;
 import javax.annotation.Nullable;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -115,11 +114,13 @@ public class Memo
         Group group = getGroup(groupId);
         PlanNode old = group.membership;
 
+        /*
         checkArgument(new HashSet<>(old.getOutputSymbols()).equals(new HashSet<>(node.getOutputSymbols())),
                 "%s: transformed expression doesn't produce same outputs: %s vs %s",
                 reason,
                 old.getOutputSymbols(),
                 node.getOutputSymbols());
+         */
 
         if (node instanceof GroupReference) {
             node = getNode(((GroupReference) node).getGroupId());

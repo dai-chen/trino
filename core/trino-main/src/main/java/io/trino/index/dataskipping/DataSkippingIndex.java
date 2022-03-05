@@ -11,22 +11,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.hyperspace.index;
+package io.trino.index.dataskipping;
 
 import io.trino.spi.predicate.TupleDomain;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static io.trino.plugin.hyperspace.index.IndexLogManager.IndexLogEntry;
+import static io.trino.index.dataskipping.IndexLogManager.IndexLogEntry;
 
 /**
  * Hyperspace data skipping index that skips split if possible.
  */
-public class HyperspaceDataSkippingIndex
+public class DataSkippingIndex
 {
     private final Set<Path> includedDataFiles;
 
@@ -34,7 +35,7 @@ public class HyperspaceDataSkippingIndex
      * @param indexRootPath index root folder path
      * @param predicate predicate on the indexed column
      */
-    public HyperspaceDataSkippingIndex(Path indexRootPath, TupleDomain<?> predicate)
+    public DataSkippingIndex(Path indexRootPath, TupleDomain<?> predicate)
     {
         try {
             IndexLogManager indexLogManager = new IndexLogManager(indexRootPath);
@@ -58,5 +59,10 @@ public class HyperspaceDataSkippingIndex
     public boolean isDataFileIncluded(Path dataFilePath)
     {
         return includedDataFiles.contains(dataFilePath);
+    }
+
+    public Set<Path> getAllIncludeDataFiles()
+    {
+        return Collections.unmodifiableSet(includedDataFiles);
     }
 }

@@ -13,6 +13,7 @@
  */
 package io.trino.sql.planner.iterative.rule;
 
+import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import io.trino.Session;
@@ -42,7 +43,7 @@ import io.trino.sql.planner.plan.TableScanNode;
 import io.trino.sql.planner.plan.ValuesNode;
 import io.trino.sql.tree.Expression;
 
-import java.util.Map;
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -175,7 +176,19 @@ public class PushPredicateIntoTableScan
                 .transformKeys(node.getAssignments()::get)
                 .intersect(node.getEnforcedConstraint());
 
-        Map<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
+        BiMap<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
+
+        if (!node.getAssignments().containsKey(new Symbol("$path"))) {
+            TupleDomain<ColumnHandle> pathDomain = ApplyDataSkippingIndex.applyDataSkippingIndex(metadata, session, symbolAllocator.getTypes(), node, decomposedPredicate);
+            if (!pathDomain.isAll()) { // TODO: check if $path already present because rule is called recursively
+                newDomain = newDomain.intersect(pathDomain);
+                assignments = ImmutableBiMap.<ColumnHandle, Symbol>builder()
+                        .putAll(assignments)
+                        .put(pathDomain.getDomains().get().keySet().iterator().next(), new Symbol("$path"))
+                        .build();
+            }
+        }
+        // TupleDomain<ColumnHandle> pathDomain = ApplyDataSkippingIndex.applyDataSkippingIndex(metadata, session, symbolAllocator.getTypes(), node, decomposedPredicate);
 
         Constraint constraint;
         // use evaluator only when there is some predicate which could not be translated into tuple domain
@@ -271,8 +284,8 @@ public class PushPredicateIntoTableScan
         TableScanNode tableScan = new TableScanNode(
                 node.getId(),
                 newTable,
-                node.getOutputSymbols(),
-                node.getAssignments(),
+                new ArrayList<>(assignments.values()),
+                assignments.inverse(),
                 computeEnforced(newDomain, remainingFilter),
                 // TODO (https://github.com/trinodb/trino/issues/8144) distinguish between predicate pushed down and remaining
                 deriveTableStatisticsForPushdown(statsProvider, session, precalculateStatistics, filterNode),
@@ -287,6 +300,8 @@ public class PushPredicateIntoTableScan
                 domainTranslator.toPredicate(remainingFilter.transformKeys(assignments::get)),
                 nonDeterministicPredicate,
                 decomposedPredicate.getRemainingExpression());
+
+        // tableScan.getTable().setPathDomain(Optional.of(pathDomain));
 
         if (!TRUE_LITERAL.equals(resultingPredicate)) {
             return Optional.of(new FilterNode(filterNode.getId(), tableScan, resultingPredicate));
