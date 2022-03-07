@@ -107,7 +107,7 @@ public class ApplyDataSkippingIndex
         List<Slice> pathList = dataSkippingIndex.getAllIncludeDataFiles()
                 .stream()
                 .map(path -> Slices.utf8Slice(getPath(path))).collect(Collectors.toList());
-        return Domain.multipleValues(type, pathList); // TODO: handle pathList empty
+        return pathList.isEmpty() ? Domain.all(type) : Domain.multipleValues(type, pathList);
     }
 
     private static String getPath(Path path)
