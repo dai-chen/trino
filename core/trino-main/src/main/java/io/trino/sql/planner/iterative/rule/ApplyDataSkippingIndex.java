@@ -14,6 +14,7 @@
 package io.trino.sql.planner.iterative.rule;
 
 import com.google.common.collect.ImmutableMap;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 import io.trino.Session;
@@ -39,10 +40,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ApplyDataSkippingIndex
 {
+    private static final Logger log = Logger.get(ApplyDataSkippingIndex.class);
+
     private ApplyDataSkippingIndex() {}
 
     public static TupleDomain<ColumnHandle> applyDataSkippingIndex(
@@ -86,6 +90,8 @@ public class ApplyDataSkippingIndex
         TableHandle tableHandle = node.getTable();
         TableSchema tableSchema = metadata.getTableSchema(session, tableHandle);
 
+        log.info("Querying index system table for table %s column %s", tableSchema.getQualifiedName(), column.toString());
+
         RecordCursor cursor = indexTable.cursor(indexTableHandle.getTransaction(), session.toConnectorSession(), TupleDomain.all());
         while (cursor.advanceNextPosition()) {
             String catalogName = (String) cursor.getObject(0);
@@ -95,6 +101,7 @@ public class ApplyDataSkippingIndex
 
             QualifiedObjectName indexedTableName = new QualifiedObjectName(catalogName, schemaName, tableName);
             if (indexedTableName.equals(tableSchema.getQualifiedName()) && column.toString().startsWith(columnName + ":")) { // HiveColumnHandle.toString
+                log.info("Found skipping index at %s", cursor.getObject(4));
                 return Optional.of(Path.of((String) cursor.getObject(4)));
             }
         }
@@ -104,9 +111,16 @@ public class ApplyDataSkippingIndex
     private static Domain getPathDomainForDomain(Path indexLocation, ColumnHandle column, Domain predicate, Type type)
     {
         DataSkippingIndex dataSkippingIndex = new DataSkippingIndex(indexLocation, TupleDomain.withColumnDomains(ImmutableMap.of(column, predicate)));
+        if (log.isInfoEnabled()) {
+            Set<String> allIncludeDataFiles = dataSkippingIndex.getAllIncludeDataFiles();
+            log.info("Data files to search %s (first 5 in total %d)",
+                    allIncludeDataFiles.stream().limit(5).collect(Collectors.toList()),
+                    allIncludeDataFiles.size());
+        }
+
         List<Slice> pathList = dataSkippingIndex.getAllIncludeDataFiles()
                 .stream()
-                .map(path -> Slices.utf8Slice(getPath(path))).collect(Collectors.toList());
+                .map(path -> Slices.utf8Slice(path)).collect(Collectors.toList());
         return pathList.isEmpty() ? Domain.all(type) : Domain.multipleValues(type, pathList);
     }
 

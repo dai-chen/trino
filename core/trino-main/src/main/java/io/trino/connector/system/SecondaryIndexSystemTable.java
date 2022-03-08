@@ -57,8 +57,14 @@ public class SecondaryIndexSystemTable
                                TupleDomain<Integer> constraint)
     {
         return InMemoryRecordSet.builder(getTableMetadata())
-                .addRow("hive", "tpch10g", "lineitem", "l_extendedprice",
-                        "/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch-q6-price-minmax")
+                // .addRow("hive", "tpch10g", "lineitem10g", "l_extendedprice",
+                //        "/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/lineitem10g-price-minmax")
+                .addRow("hive", "default", "lineitem", "l_extendedprice",
+                        "/home/daichen/indexpoc/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch10g-price-minmax")
+                .addRow("hive", "default", "lineitem100", "l_extendedprice",
+                        "/home/daichen/indexpoc/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch100g-price-minmax")
+                .addRow("hive", "default", "lineitem1000", "l_extendedprice",
+                        "/home/daichen/indexpoc/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch1000g-price-minmax")
                 .build().cursor();
     }
 }

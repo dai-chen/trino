@@ -25,7 +25,7 @@ import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -39,12 +39,12 @@ public class IndexDataManager
         this.predicate = predicate;
     }
 
-    public Map<Long, IndexDataEntry> getIndexData(Path indexPath)
+    public Map<Long, IndexDataEntry> getIndexData(URI indexPath)
             throws IOException
     {
         try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(
                 HadoopInputFile.fromPath(
-                        new org.apache.hadoop.fs.Path(indexPath.toString()),
+                        new org.apache.hadoop.fs.Path(indexPath),
                         new Configuration(false)))
                 .build()) {
             Map<Long, IndexDataEntry> indexData = new HashMap<>();

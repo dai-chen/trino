@@ -13,12 +13,11 @@
  */
 package io.trino.index.dataskipping;
 
+import com.google.common.collect.ImmutableSet;
 import io.trino.spi.predicate.TupleDomain;
 
-import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,7 +28,7 @@ import static io.trino.index.dataskipping.IndexLogManager.IndexLogEntry;
  */
 public class DataSkippingIndex
 {
-    private final Set<Path> includedDataFiles;
+    private final Set<String> includedDataFiles;
 
     /**
      * @param indexRootPath index root folder path
@@ -41,28 +40,28 @@ public class DataSkippingIndex
             IndexLogManager indexLogManager = new IndexLogManager(indexRootPath);
             IndexLogEntry indexLogEntry = indexLogManager.getLatestStableLog();
 
-            this.includedDataFiles = new HashSet<>();
+            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
             IndexDataManager indexDataManager = new IndexDataManager(predicate);
             for (Map.Entry<Long, String> entry : indexLogEntry.indexIdTracker.entrySet()) {
-                Path indexFilePath = Path.of(entry.getValue());
+                URI indexFilePath = new URI(entry.getValue());
                 indexDataManager.getIndexData(indexFilePath).keySet().stream()
                         .map(indexLogEntry.sourceIdTracker::get)
-                        .map(Path::of)
-                        .forEach(includedDataFiles::add);
+                        .forEach(builder::add);
             }
+            includedDataFiles = builder.build();
         }
-        catch (IOException e) {
+        catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public boolean isDataFileIncluded(Path dataFilePath)
+    public boolean isDataFileIncluded(String dataFilePath)
     {
         return includedDataFiles.contains(dataFilePath);
     }
 
-    public Set<Path> getAllIncludeDataFiles()
+    public Set<String> getAllIncludeDataFiles()
     {
-        return Collections.unmodifiableSet(includedDataFiles);
+        return includedDataFiles;
     }
 }

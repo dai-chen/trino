@@ -188,7 +188,6 @@ public class PushPredicateIntoTableScan
                         .build();
             }
         }
-        // TupleDomain<ColumnHandle> pathDomain = ApplyDataSkippingIndex.applyDataSkippingIndex(metadata, session, symbolAllocator.getTypes(), node, decomposedPredicate);
 
         Constraint constraint;
         // use evaluator only when there is some predicate which could not be translated into tuple domain

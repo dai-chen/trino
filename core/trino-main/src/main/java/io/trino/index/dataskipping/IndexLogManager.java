@@ -41,19 +41,18 @@ public class IndexLogManager
         String latestStableLogPath = indexPath.toString() + "/_hyperspace_log/latestStable";
         JsonNode root = MAPPER.readTree(new File(latestStableLogPath));
 
-        Map<Long, String> indexIdTracker = parseContent(root.at("/content/root/subDirs"));
+        Map<Long, String> indexIdTracker = parseContent(root.at("/content/root"));
 
         Map<Long, String> sourceIdTracker = new HashMap<>();
         root.at("/source/plan/properties/relations").forEach(relation ->
-                sourceIdTracker.putAll(parseContent(relation.at("/data/properties/content/root/subDirs"))));
+                sourceIdTracker.putAll(parseContent(relation.at("/data/properties/content/root"))));
         return new IndexLogEntry(indexIdTracker, sourceIdTracker);
     }
 
-    // Accept subDirs to skip root name "file:/" which fails Path.equals
-    private Map<Long, String> parseContent(JsonNode subDirs)
+    private Map<Long, String> parseContent(JsonNode root)
     {
         Map<Long, String> idTracker = new HashMap<>();
-        subDirs.forEach(subDir -> parseContent(subDir, new ArrayList<>(), idTracker));
+        parseContent(root, new ArrayList<>(), idTracker);
         return idTracker;
     }
 
@@ -63,9 +62,17 @@ public class IndexLogManager
             return;
         }
 
-        path.add(root.get("name").asText());
+        String name = root.get("name").asText();
+        if (name.startsWith("file:/")) {
+            name = name.replaceFirst("/", "///"); // replace file:/ with file:/// because of no authority (host:port in URI)
+        }
+        if (name.endsWith("/")) {
+            name = name.substring(0, name.length() - 1); // handle special case in s3a://.../
+        }
+
+        path.add(name);
         root.get("files").forEach(file ->
-                idTracker.put(file.get("id").asLong(), "/" + String.join("/", path) + "/" + file.get("name").asText()));
+                idTracker.put(file.get("id").asLong(), String.join("/", path) + "/" + file.get("name").asText()));
         root.get("subDirs").forEach(subDir -> parseContent(subDir, path, idTracker));
         path.remove(path.size() - 1);
     }
