@@ -34,7 +34,6 @@ import io.trino.sql.planner.Symbol;
 import io.trino.sql.planner.TypeProvider;
 import io.trino.sql.planner.plan.TableScanNode;
 
-import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -43,12 +42,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Optimizer rule that applies data skipping to the query if applicable.
+ */
 public class ApplyDataSkippingIndex
 {
     private static final Logger log = Logger.get(ApplyDataSkippingIndex.class);
 
     private ApplyDataSkippingIndex() {}
 
+    /**
+     * Apply the index by analyzing the predicate and return data file list as domain of "$path" column
+     * (which can be recognized by Hive connector to filter out splits in InternalHiveSplitFactory)
+     */
     public static TupleDomain<ColumnHandle> applyDataSkippingIndex(
             Metadata metadata,
             Session session,
@@ -62,7 +68,10 @@ public class ApplyDataSkippingIndex
         }
 
         Symbol pathSymbol = new Symbol("$path");
-        Type type = types.get(pathSymbol);
+        Type type = types.allTypes().get(pathSymbol);
+        if (type == null) { // Underlying table doesn't have $path, ex. query on system table
+            return TupleDomain.all();
+        }
 
         Domain pathDomain = Domain.all(type);
         for (Map.Entry<ColumnHandle, Domain> entry : currentDomain.getDomains().get().entrySet()) {
@@ -105,6 +114,7 @@ public class ApplyDataSkippingIndex
                 return Optional.of(Path.of((String) cursor.getObject(4)));
             }
         }
+        log.info("No data skipping index applicable to the query");
         return Optional.empty();
     }
 
@@ -120,17 +130,7 @@ public class ApplyDataSkippingIndex
 
         List<Slice> pathList = dataSkippingIndex.getAllIncludeDataFiles()
                 .stream()
-                .map(path -> Slices.utf8Slice(path)).collect(Collectors.toList());
+                .map(Slices::utf8Slice).collect(Collectors.toList());
         return pathList.isEmpty() ? Domain.all(type) : Domain.multipleValues(type, pathList);
-    }
-
-    private static String getPath(Path path)
-    {
-        try {
-            return path.toUri().toURL().toString(); // file:/Users/...
-        }
-        catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

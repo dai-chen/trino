@@ -24,6 +24,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Index log manager that read index metadata file to parse index data file location
+ * and mappings from file ID to source data file.
+ */
 public class IndexLogManager
 {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -35,6 +39,9 @@ public class IndexLogManager
         this.indexPath = indexPath;
     }
 
+    /**
+     * Parse latest stable log in index metadata folder.
+     */
     public IndexLogEntry getLatestStableLog()
             throws IOException
     {

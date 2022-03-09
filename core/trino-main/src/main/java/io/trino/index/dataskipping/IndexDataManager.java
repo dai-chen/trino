@@ -30,6 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Index data manager that reads index data file to get the index content.
+ */
 public class IndexDataManager
 {
     private final TupleDomain<?> predicate;
