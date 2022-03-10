@@ -27,6 +27,7 @@ import java.nio.file.Path;
 public class TestDataSkippingIndex
 {
     private static final Path INDEX_ROOT_PATH = Path.of("/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/lineitem10g-price-minmax"); // Path.of("src/test/resources/orders-minmax").toAbsolutePath();
+    //private static final Path INDEX_ROOT_PATH = Path.of("/Users/daichen/Software/spark-3.1.2-bin-hadoop3.2/spark-warehouse/indexes/tpch10g-price-bloomfilter-fp1");
 
     private static final ColumnHandle COLUMN_HANDLE = new ColumnHandle() {};
 

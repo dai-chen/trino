@@ -14,6 +14,9 @@
 package io.trino.index.dataskipping;
 
 import com.google.common.collect.ImmutableSet;
+import io.trino.index.dataskipping.sketch.BloomFilterSketch;
+import io.trino.index.dataskipping.sketch.MinMaxSketch;
+import io.trino.index.dataskipping.sketch.Sketch;
 import io.trino.spi.predicate.TupleDomain;
 
 import java.net.URI;
@@ -39,12 +42,13 @@ public class DataSkippingIndex
         try {
             IndexLogManager indexLogManager = new IndexLogManager(indexRootPath);
             IndexLogEntry indexLogEntry = indexLogManager.getLatestStableLog();
+            Sketch sketch = createSketch(indexRootPath, predicate);
 
             ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-            IndexDataManager indexDataManager = new IndexDataManager(predicate);
+            IndexDataManager indexDataManager = new IndexDataManager(sketch);
             for (Map.Entry<Long, String> entry : indexLogEntry.indexIdTracker.entrySet()) {
                 URI indexFilePath = new URI(entry.getValue());
-                indexDataManager.getIndexData(indexFilePath).keySet().stream()
+                indexDataManager.getIndexData(indexFilePath).stream()
                         .map(indexLogEntry.sourceIdTracker::get)
                         .forEach(builder::add);
             }
@@ -63,5 +67,13 @@ public class DataSkippingIndex
     public Set<String> getAllIncludeDataFiles()
     {
         return includedDataFiles;
+    }
+
+    private Sketch createSketch(Path indexRootPath, TupleDomain<?> predicate)
+    {
+        if (indexRootPath.toString().contains("minmax")) { // TODO: read type from index metadata
+            return new MinMaxSketch(predicate);
+        }
+        return new BloomFilterSketch(predicate);
     }
 }
