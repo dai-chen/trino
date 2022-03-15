@@ -17,6 +17,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 import io.trino.plugin.hive.metastore.Table;
 import io.trino.spi.connector.SchemaTablePrefix;
@@ -40,6 +41,8 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 public class CachingDirectoryLister
         implements DirectoryLister
 {
+    private static final Logger log = Logger.get(CachingDirectoryLister.class);
+
     private final Cache<Path, List<LocatedFileStatus>> cache;
     private final List<SchemaTablePrefix> tablePrefixes;
 
@@ -81,6 +84,8 @@ public class CachingDirectoryLister
     public RemoteIterator<LocatedFileStatus> list(FileSystem fs, Table table, Path path)
             throws IOException
     {
+        log.info("Listing S3 file path for partition folder %s", path);
+
         List<LocatedFileStatus> files = cache.getIfPresent(path);
         if (files != null) {
             return simpleRemoteIterator(files);

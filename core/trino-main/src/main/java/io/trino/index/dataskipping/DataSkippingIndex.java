@@ -31,6 +31,8 @@ import static io.trino.index.dataskipping.IndexLogManager.IndexLogEntry;
  */
 public class DataSkippingIndex
 {
+    private final Set<Long> includedPartitionNames;
+
     private final Set<String> includedDataFiles;
 
     /**
@@ -44,15 +46,20 @@ public class DataSkippingIndex
             IndexLogEntry indexLogEntry = indexLogManager.getLatestStableLog();
             Sketch sketch = createSketch(indexRootPath, predicate);
 
-            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+            ImmutableSet.Builder<Long> partitionNames = ImmutableSet.builder();
+            ImmutableSet.Builder<String> dataFiles = ImmutableSet.builder();
             IndexDataManager indexDataManager = new IndexDataManager(sketch);
             for (Map.Entry<Long, String> entry : indexLogEntry.indexIdTracker.entrySet()) {
                 URI indexFilePath = new URI(entry.getValue());
-                indexDataManager.getIndexData(indexFilePath).stream()
+                IndexDataManager.IndexData indexData = indexDataManager.getIndexData(indexFilePath);
+                partitionNames.addAll(indexData.partitionNames);
+                indexData.dataFileIds.stream()
                         .map(indexLogEntry.sourceIdTracker::get)
-                        .forEach(builder::add);
+                        .forEach(dataFiles::add);
             }
-            includedDataFiles = builder.build();
+
+            includedPartitionNames = partitionNames.build();
+            includedDataFiles = dataFiles.build();
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -62,6 +69,11 @@ public class DataSkippingIndex
     public boolean isDataFileIncluded(String dataFilePath)
     {
         return includedDataFiles.contains(dataFilePath);
+    }
+
+    public Set<Long> getIncludedPartitionNames()
+    {
+        return includedPartitionNames;
     }
 
     public Set<String> getAllIncludeDataFiles()

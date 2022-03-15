@@ -35,7 +35,6 @@ import io.trino.sql.planner.TypeProvider;
 import io.trino.sql.planner.plan.TableScanNode;
 
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,26 +67,38 @@ public class ApplyDataSkippingIndex
         }
 
         Symbol pathSymbol = new Symbol("$path");
-        Type type = types.allTypes().get(pathSymbol);
-        if (type == null) { // Underlying table doesn't have $path, ex. query on system table
+        Map<Symbol, Type> allTypes = types.allTypes();
+        Type pathType = allTypes.get(pathSymbol);
+        if (pathType == null) { // Underlying table doesn't have $path, ex. query on system table
             return TupleDomain.all();
         }
+        Domain pathDomain = Domain.all(pathType);
 
-        Domain pathDomain = Domain.all(type);
+        Symbol partitionSymbol = new Symbol("l_shipdate"); // TODO: remove hardcoding
+        Type partitionType = allTypes.get(partitionSymbol);
+        Domain partitionDomain = Domain.all(allTypes.get(partitionSymbol));
         for (Map.Entry<ColumnHandle, Domain> entry : currentDomain.getDomains().get().entrySet()) {
             ColumnHandle column = entry.getKey();
             Domain predicate = entry.getValue();
             Optional<Path> indexLocation = getIndexLocation(session, metadata, node, column);
             if (indexLocation.isPresent()) {
-                pathDomain = pathDomain.intersect(getPathDomainForDomain(indexLocation.get(), column, predicate, type));
+                DataSkippingIndex dataSkippingIndex = new DataSkippingIndex(indexLocation.get(), TupleDomain.withColumnDomains(ImmutableMap.of(column, predicate)));
+                partitionDomain = partitionDomain.intersect(getPartitionDomain(dataSkippingIndex, partitionType));
+                pathDomain = pathDomain.intersect(getPathDomain(dataSkippingIndex, pathType));
             }
         }
 
+        ColumnHandle partitionColumnHandle = node.getAssignments().get(partitionSymbol);
+        if (partitionColumnHandle == null) {
+            partitionColumnHandle = metadata.getColumnHandles(session, node.getTable()).get(partitionSymbol.getName());
+        }
         ColumnHandle pathColumnHandle = node.getAssignments().get(pathSymbol);
         if (pathColumnHandle == null) {
             pathColumnHandle = metadata.getColumnHandles(session, node.getTable()).get(pathSymbol.getName());
         }
-        return TupleDomain.withColumnDomains(Collections.singletonMap(pathColumnHandle, pathDomain));
+        return TupleDomain.withColumnDomains(ImmutableMap.of(
+                partitionColumnHandle, partitionDomain,
+                pathColumnHandle, pathDomain));
     }
 
     private static Optional<Path> getIndexLocation(Session session, Metadata metadata, TableScanNode node, ColumnHandle column)
@@ -118,14 +129,29 @@ public class ApplyDataSkippingIndex
         return Optional.empty();
     }
 
-    private static Domain getPathDomainForDomain(Path indexLocation, ColumnHandle column, Domain predicate, Type type)
+    private static Domain getPartitionDomain(DataSkippingIndex dataSkippingIndex, Type type)
     {
-        DataSkippingIndex dataSkippingIndex = new DataSkippingIndex(indexLocation, TupleDomain.withColumnDomains(ImmutableMap.of(column, predicate)));
         if (log.isInfoEnabled()) {
-            Set<String> allIncludeDataFiles = dataSkippingIndex.getAllIncludeDataFiles();
+            Set<Long> includedPartitionNames = dataSkippingIndex.getIncludedPartitionNames();
+            log.info("Partition to search %s (first 5 in total %d)",
+                    includedPartitionNames.stream().limit(5).collect(Collectors.toList()),
+                    includedPartitionNames.size());
+        }
+
+        List<Long> partitionList = dataSkippingIndex.getIncludedPartitionNames()
+                .stream()
+                // .map(Slices::utf8Slice)
+                .collect(Collectors.toList());
+        return partitionList.isEmpty() ? Domain.all(type) : Domain.multipleValues(type, partitionList);
+    }
+
+    private static Domain getPathDomain(DataSkippingIndex dataSkippingIndex, Type type)
+    {
+        if (log.isInfoEnabled()) {
+            Set<String> includeDataFiles = dataSkippingIndex.getAllIncludeDataFiles();
             log.info("Data files to search %s (first 5 in total %d)",
-                    allIncludeDataFiles.stream().limit(5).collect(Collectors.toList()),
-                    allIncludeDataFiles.size());
+                    includeDataFiles.stream().limit(5).collect(Collectors.toList()),
+                    includeDataFiles.size());
         }
 
         List<Slice> pathList = dataSkippingIndex.getAllIncludeDataFiles()

@@ -14,6 +14,7 @@
 package io.trino.plugin.hive.util;
 
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 import io.airlift.units.DataSize;
 import io.trino.plugin.hive.AcidInfo;
 import io.trino.plugin.hive.HiveColumnHandle;
@@ -58,6 +59,7 @@ import static java.util.Objects.requireNonNull;
 
 public class InternalHiveSplitFactory
 {
+    private static final Logger log = Logger.get(InternalHiveSplitFactory.class);
     private final FileSystem fileSystem;
     private final String partitionName;
     private final InputFormat<?, ?> inputFormat;
@@ -162,6 +164,7 @@ public class InternalHiveSplitFactory
         if (!pathMatchesPredicate(pathDomain, pathString)) {
             return Optional.empty();
         }
+        log.info("Create Hive split at position [%d,%d] in %s", start, start + length, path);
 
         // per HIVE-13040 empty files are allowed
         if (estimatedFileSize == 0) {

@@ -44,6 +44,7 @@ import io.trino.sql.planner.plan.ValuesNode;
 import io.trino.sql.tree.Expression;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -179,13 +180,20 @@ public class PushPredicateIntoTableScan
         BiMap<ColumnHandle, Symbol> assignments = ImmutableBiMap.copyOf(node.getAssignments()).inverse();
 
         if (!node.getAssignments().containsKey(new Symbol("$path"))) {
-            TupleDomain<ColumnHandle> pathDomain = ApplyDataSkippingIndex.applyDataSkippingIndex(metadata, session, symbolAllocator.getTypes(), node, decomposedPredicate);
-            if (!pathDomain.isAll()) { // TODO: check if $path already present because rule is called recursively
-                newDomain = newDomain.intersect(pathDomain);
-                assignments = ImmutableBiMap.<ColumnHandle, Symbol>builder()
-                        .putAll(assignments)
-                        .put(pathDomain.getDomains().get().keySet().iterator().next(), new Symbol("$path"))
-                        .build();
+            TupleDomain<ColumnHandle> partitionAndPathDomain = ApplyDataSkippingIndex.applyDataSkippingIndex(metadata, session, symbolAllocator.getTypes(), node, decomposedPredicate);
+            if (!partitionAndPathDomain.isAll()) { // TODO: check if $path already present because rule is called recursively
+                newDomain = newDomain.intersect(partitionAndPathDomain);
+
+                List<ColumnHandle> columnHandles = new ArrayList<>(partitionAndPathDomain.getDomains().get().keySet());
+                ImmutableBiMap.Builder<ColumnHandle, Symbol> newAssignments = ImmutableBiMap.<ColumnHandle, Symbol>builder()
+                        .putAll(assignments);
+                if (!assignments.containsKey(columnHandles.get(0))) {
+                    newAssignments.put(columnHandles.get(0), new Symbol("l_shipdate")); // TODO: remove hardcoding
+                }
+                if (!assignments.containsKey(columnHandles.get(1))) {
+                    newAssignments.put(columnHandles.get(1), new Symbol("$path"));
+                }
+                assignments = newAssignments.build();
             }
         }
 

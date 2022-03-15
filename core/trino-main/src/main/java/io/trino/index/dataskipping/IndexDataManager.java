@@ -23,7 +23,11 @@ import org.apache.parquet.hadoop.util.HadoopInputFile;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Index data manager that reads index data file to get the index content.
@@ -37,7 +41,7 @@ public class IndexDataManager
         this.sketch = sketch;
     }
 
-    public List<Long> getIndexData(URI indexPath)
+    public IndexData getIndexData(URI indexPath)
             throws IOException
     {
         try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(
@@ -45,15 +49,37 @@ public class IndexDataManager
                         new org.apache.hadoop.fs.Path(indexPath),
                         new Configuration(false)))
                 .build()) {
-            List<Long> indexData = new ArrayList<>();
+            IndexData indexData = new IndexData();
             GenericRecord record;
             while ((record = reader.read()) != null) {
                 long sourceFileId = (long) record.get("_data_file_id");
+                int partition = (int) record.get("Partition_l_shipdate__0");
                 if (sketch.evaluate(record)) {
-                    indexData.add(sourceFileId);
+                    indexData.partitionNames.add((long) partition);
+                    indexData.dataFileIds.add(sourceFileId);
                 }
             }
             return indexData;
         }
+    }
+
+    private Date getPartition(GenericRecord record)
+    {
+        int days = (int) record.get("Partition_l_shipdate__0"); // TODO: remove hardcoding
+
+        Calendar c = Calendar.getInstance();
+        c.set(0, Calendar.JANUARY, 1);
+        c.add(Calendar.DATE, days); // Adding 5 days
+        return c.getTime();
+    }
+
+    public static class IndexData
+    {
+        /**
+         * Days after 1970-01-01
+         */
+        Set<Long> partitionNames = new HashSet<>();
+
+        List<Long> dataFileIds = new ArrayList<>();
     }
 }
