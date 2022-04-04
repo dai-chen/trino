@@ -130,6 +130,7 @@
         <module>plugin/trino-kinesis</module>
         <module>plugin/trino-kudu</module>
         <module>plugin/trino-local-file</module>
+        <module>plugin/trino-lucene</module>
         <module>plugin/trino-memory</module>
         <module>plugin/trino-memsql</module>
         <module>plugin/trino-ml</module>
@@ -296,6 +297,12 @@
             <dependency>
                 <groupId>io.trino</groupId>
                 <artifactId>trino-local-file</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-lucene</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
