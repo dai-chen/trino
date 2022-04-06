@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.json.JsonModule;
+import io.trino.spi.NodeManager;
 import io.trino.spi.classloader.ThreadContextClassLoader;
 import io.trino.spi.connector.Connector;
 import io.trino.spi.connector.ConnectorContext;
@@ -59,10 +60,10 @@ public class LuceneConnectorFactory
             // A plugin is not required to use Guice; it is just very convenient
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
-                    new LuceneModule(connectorId, context.getTypeManager()));
+                    new LuceneModule(connectorId, context.getTypeManager()),
+                    binder -> binder.bind(NodeManager.class).toInstance(context.getNodeManager()));
 
             Injector injector = app
-                    // .strictConfig()
                     .doNotInitializeLogging()
                     .setRequiredConfigurationProperties(requiredConfig)
                     // .setOptionalConfigurationProperties(optionalConfig)
@@ -70,8 +71,5 @@ public class LuceneConnectorFactory
 
             return injector.getInstance(LuceneConnector.class);
         }
-        // catch (Exception e) {
-        //    throw Throwables.propagate(e);
-        // }
     }
 }

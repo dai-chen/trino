@@ -15,7 +15,6 @@ package io.trino.plugin.lucene;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.collect.ImmutableList;
 import io.trino.spi.HostAddress;
 import io.trino.spi.connector.ConnectorSplit;
 
@@ -30,7 +29,7 @@ public class LuceneSplit
     private final String connectorId;
     private final String schemaName;
     private final String tableName;
-    private final URI uri;
+    private final URI path;
     private final boolean remotelyAccessible;
     private final List<HostAddress> addresses;
 
@@ -39,16 +38,18 @@ public class LuceneSplit
             @JsonProperty("connectorId") String connectorId,
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
-            @JsonProperty("uri") URI uri)
+            @JsonProperty("path") URI path,
+            @JsonProperty("addresses") List<HostAddress> addresses)
     {
         this.schemaName = requireNonNull(schemaName, "schema name is null");
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.tableName = requireNonNull(tableName, "table name is null");
-        this.uri = requireNonNull(uri, "uri is null");
+        this.path = requireNonNull(path, "path is null");
+        this.addresses = requireNonNull(addresses, "address list is null");
 
 //        if ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme())) {
         remotelyAccessible = true;
-        addresses = ImmutableList.of(HostAddress.fromUri(uri));
+        // addresses = ImmutableList.of(HostAddress.fromUri(uri));
     }
 
     @JsonProperty
@@ -70,9 +71,9 @@ public class LuceneSplit
     }
 
     @JsonProperty
-    public URI getUri()
+    public URI getPath()
     {
-        return uri;
+        return path;
     }
 
     @Override
@@ -82,6 +83,7 @@ public class LuceneSplit
         return remotelyAccessible;
     }
 
+    @JsonProperty
     @Override
     public List<HostAddress> getAddresses()
     {

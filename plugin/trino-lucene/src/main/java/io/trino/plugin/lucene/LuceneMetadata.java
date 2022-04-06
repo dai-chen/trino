@@ -22,6 +22,7 @@ import io.trino.spi.connector.ConnectorMetadata;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTableMetadata;
+import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
@@ -52,6 +53,20 @@ public class LuceneMetadata
     }
 
     @Override
+    public boolean usesLegacyTableLayouts()
+    {
+        return false;
+    }
+
+    @Override
+    public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle table)
+    {
+        LuceneTableHandle luceneTableHandle = (LuceneTableHandle) table;
+        LuceneTable luceneTable = luceneClient.getTable(luceneTableHandle.getTableName(), luceneTableHandle.getSchemaName());
+        return new ConnectorTableProperties();
+    }
+
+    @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
         return listSchemaNames();
@@ -76,22 +91,6 @@ public class LuceneMetadata
 
         return new LuceneTableHandle(connectorId, tableName.getSchemaName(), tableName.getTableName());
     }
-
-    /*
-    @Override
-    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns)
-    {
-        LuceneTableHandle tableHandle = checkType(table, LuceneTableHandle.class, "table");
-        ConnectorTableLayout layout = new ConnectorTableLayout(new LuceneTableLayoutHandle(tableHandle));
-        return ImmutableList.of(new ConnectorTableLayoutResult(layout, constraint.getSummary()));
-    }
-
-    @Override
-    public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
-    {
-        return new ConnectorTableLayout(handle);
-    }
-    */
 
     @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)

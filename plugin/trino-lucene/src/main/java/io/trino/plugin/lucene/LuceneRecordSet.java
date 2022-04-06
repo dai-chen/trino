@@ -46,7 +46,7 @@ public class LuceneRecordSet
         this.columnTypes = types.build();
 
         try {
-            byteSource = Resources.asByteSource(split.getUri().toURL());
+            byteSource = Resources.asByteSource(split.getPath().toURL());
         }
         catch (MalformedURLException e) {
             throw Throwables.propagate(e);

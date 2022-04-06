@@ -1,4 +1,20 @@
 {
+    "default": [
+        {
+            "name": "test",
+            "columns": [
+                {
+                    "name": "size",
+                    "type": "INTEGER"
+                },
+                {
+                    "name": "status",
+                    "type": "VARCHAR"
+                }
+            ],
+            "sources": ["/Users/daichen/IdeaProjects/trino-lucene/plugin/trino-lucene/src/main/resources/example-data/index1"]
+        }
+    ],
     "example": [
         {
             "name": "numbers",

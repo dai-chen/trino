@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.lucene;
 
+import io.trino.spi.NodeManager;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitManager;
@@ -27,6 +28,7 @@ import javax.inject.Inject;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,13 +38,15 @@ public class LuceneSplitManager
         implements ConnectorSplitManager
 {
     private final String connectorId;
-    private final LuceneClient exampleClient;
+    private final LuceneClient luceneClient;
+    private final NodeManager nodeManager;
 
     @Inject
-    public LuceneSplitManager(LuceneConnectorId connectorId, LuceneClient exampleClient)
+    public LuceneSplitManager(LuceneConnectorId connectorId, LuceneClient luceneClient, NodeManager nodeManager)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
-        this.exampleClient = requireNonNull(exampleClient, "client is null");
+        this.luceneClient = requireNonNull(luceneClient, "client is null");
+        this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
     }
 
     @Override
@@ -53,18 +57,14 @@ public class LuceneSplitManager
                                           DynamicFilter dynamicFilter,
                                           Constraint constraint)
     {
-        LuceneTableHandle luceneTable = (LuceneTableHandle) tableHandle;
-
-        // LuceneTableLayoutHandle layoutHandle = checkType(layout, LuceneTableLayoutHandle.class, "layout");
-        // LuceneTableHandle tableHandle = layoutHandle.getTable();
-        // LuceneTable table = exampleClient.getTable(tableHandle.getSchemaName(), tableHandle.getTableName());
-        // this can happen if table is removed during a query
-        // checkState(tableTable != null, "Table %s.%s no longer exists", tableHandle.getSchemaName(), tableHandle.getTableName());
+        LuceneTableHandle luceneTableHandle = (LuceneTableHandle) tableHandle;
+        LuceneTable luceneTable = luceneClient.getTable(luceneTableHandle.getSchemaName(), luceneTableHandle.getTableName());
 
         List<ConnectorSplit> splits = new ArrayList<>();
-        //for (URI uri : luceneTable.getSources()) {
-        splits.add(new LuceneSplit(connectorId, luceneTable.getSchemaName(), luceneTable.getTableName(), URI.create("localhost")));
-        //}
+        for (URI uri : luceneTable.getSources()) {
+            splits.add(new LuceneSplit(connectorId, luceneTableHandle.getSchemaName(), luceneTableHandle.getTableName(), uri,
+                    Arrays.asList(nodeManager.getCurrentNode().getHostAndPort())));
+        }
         Collections.shuffle(splits);
 
         return new FixedSplitSource(splits);
