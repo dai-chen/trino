@@ -1,8 +1,12 @@
 {
     "default": [
         {
-            "name": "test",
+            "name": "logs-221998",
             "columns": [
+                {
+                    "name": "clientip",
+                    "type": "VARCHAR"
+                },
                 {
                     "name": "size",
                     "type": "BIGINT"
@@ -12,7 +16,13 @@
                     "type": "BIGINT"
                 }
             ],
-            "sources": ["file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/0/index"]
+            "sources": [
+                "file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/0/index",
+                "file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/1/index",
+                "file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/2/index",
+                "file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/3/index",
+                "file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/4/index"
+            ]
         }
     ],
     "example": [

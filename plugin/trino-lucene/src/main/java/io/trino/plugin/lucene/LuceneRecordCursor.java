@@ -13,91 +13,83 @@
  */
 package io.trino.plugin.lucene;
 
-import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
+import com.google.common.net.InetAddresses;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
-import org.apache.lucene.document.Document;
+import io.trino.spi.type.VarcharType;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
+import static org.apache.lucene.search.Sort.INDEXORDER;
 
 public class LuceneRecordCursor
         implements RecordCursor
 {
-    private static final Splitter LINE_SPLITTER = Splitter.on(",").trimResults();
-
     private final List<LuceneColumnHandle> columnHandles;
-    private final int[] fieldToColumnIndex;
 
-    private final long totalBytes = 0;
-    private List<String> fields;
-    private IndexSearcher searcher;
-    private int currentDocIdx;
-    private int numDoc;
+    private final List<String> fields = new ArrayList<>();
 
-    private TopDocs docs;
-    private List<SortedNumericDocValues> docValueIterators = new ArrayList<>();
+    private final List<DocIdSetIterator> docValueIterators = new ArrayList<>();
+
+    private final ScoreDoc[] documents;
+    private int current;
 
     public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles) throws Exception
     {
-        this.columnHandles = columnHandles;
-
-        IndexReader reader = null;
-        try {
-            reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
-        }
-        catch (Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        searcher = new IndexSearcher(reader);
-        // this.numDoc = reader.maxDoc();
-
-        this.docs = searcher.search(new MatchAllDocsQuery(), 10000);
-        this.numDoc = docs.scoreDocs.length;
-
-        fieldToColumnIndex = new int[columnHandles.size()];
-        for (int i = 0; i < columnHandles.size(); i++) {
-            LuceneColumnHandle columnHandle = columnHandles.get(i);
-            fieldToColumnIndex[i] = columnHandle.getOrdinalPosition();
-
-            docValueIterators.add(DocValues.getSortedNumeric(reader.leaves().get(0).reader(), columnHandle.getColumnName()));
-        }
-
-        fields = new ArrayList<>();
+        this(path, columnHandles, new MatchAllDocsQuery());
     }
 
-    // @Override
-    public long getTotalBytes()
+    public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles, Query query) throws Exception
     {
-        return totalBytes;
+        this.columnHandles = columnHandles;
+
+        IndexReader reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
+        IndexSearcher searcher = new IndexSearcher(reader);
+        documents = searcher.search(query, Integer.MAX_VALUE, INDEXORDER, false).scoreDocs;
+
+        LeafReader leafReader = reader.leaves().get(0).reader();
+        for (LuceneColumnHandle columnHandle : columnHandles) {
+            if (columnHandle.getColumnType() == VarcharType.VARCHAR) {
+                docValueIterators.add(DocValues.unwrapSingleton(DocValues.getSortedSet(leafReader, columnHandle.getColumnName())));
+            }
+            else {
+                docValueIterators.add(DocValues.unwrapSingleton(DocValues.getSortedNumeric(leafReader, columnHandle.getColumnName())));
+            }
+        }
     }
 
     @Override
     public long getCompletedBytes()
     {
-        return totalBytes;
+        return 0;
     }
 
     @Override
@@ -116,75 +108,40 @@ public class LuceneRecordCursor
     @Override
     public boolean advanceNextPosition()
     {
-        if (currentDocIdx == numDoc) {
+        if (current == documents.length) {
             return false;
         }
 
         try {
             fields.clear();
-            for (SortedNumericDocValues iterator : docValueIterators) {
-                iterator.advance(docs.scoreDocs[currentDocIdx].doc);
-                fields.add(String.valueOf(iterator.nextValue()));
-            }
+            int docId = documents[current++].doc;
 
-            currentDocIdx++;
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        /*
-        try {
-            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
-                LeafReader docValueReader = leaf.reader();
-
-                for (LuceneColumnHandle columnHandle : columnHandles) {
-                    if (columnHandle.getColumnType() == IntegerType.INTEGER) {
-                        fields.add(String.valueOf(docValueReader.getNumericDocValues(columnHandle.getColumnName()).longValue()));
-                    } else {
-                        // fields.add(docValueReader.getBinaryDocValues(columnHandle.getColumnName()).binaryValue().utf8ToString());
-                        //fields.add(docValueReader.getSortedDocValues(columnHandle.getColumnName()).);
-                    }
+            for (DocIdSetIterator iterator : docValueIterators) {
+                /* Doesn't work ...
+                if (iterator.advance(iterator.nextDoc()) == NO_MORE_DOCS) {
+                    return false;
+                }
+                */
+                iterator.advance(docId);
+                if (iterator instanceof SortedDocValues) {
+                    SortedDocValues stringIterator = (SortedDocValues) iterator;
+                    BytesRef bytesRef = stringIterator.lookupOrd(stringIterator.ordValue());
+                    fields.add(parseIP(bytesRef));
+                }
+                else {
+                    fields.add(String.valueOf(((NumericDocValues) iterator).longValue()));
                 }
             }
         }
         catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-        */
-
-        /*
-        Document doc = null;
-        try {
-            doc = searcher.doc(currentDocIdx++);
-            fields = parseDoc(doc);
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-        */
         return true;
-    }
-
-    private List<String> parseDoc(Document doc)
-    {
-        List<String> fds = new ArrayList<>();
-        // String allFieldNames = "orderkey,custkey,orderstatus,totalprice,orderdate,orderpriority,clerk,shippriority,comment";
-        // String[] fieldNames = allFieldNames.split(",");
-        for (int i = 0; i < columnHandles.size(); i++) {
-            String fieldName = columnHandles.get(i).getColumnName();
-            String columnValue = doc.get(fieldName);
-            fds.add(columnValue);
-        }
-        return fds;
     }
 
     private String getFieldValue(int field)
     {
-        checkState(fields != null, "Cursor has not been advanced yet");
-
-        int columnIndex = fieldToColumnIndex[field];
-        return fields.get(columnIndex);
+        return fields.get(field);
     }
 
     @Override
@@ -237,5 +194,12 @@ public class LuceneRecordCursor
     @Override
     public void close()
     {
+    }
+
+    private String parseIP(BytesRef value)
+    {
+        byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+        InetAddress inet = InetAddressPoint.decode(bytes);
+        return InetAddresses.toAddrString(inet);
     }
 }

@@ -14,6 +14,7 @@
 package io.trino.plugin.lucene;
 
 import io.trino.spi.type.BigintType;
+import io.trino.spi.type.VarcharType;
 import org.testng.annotations.Test;
 
 import java.net.URI;
@@ -27,12 +28,17 @@ public class TestLuceneRecordCursor
     {
         URI path = URI.create("file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/0/index");
         List<LuceneColumnHandle> columns = Arrays.asList(
-                new LuceneColumnHandle("connector-1", "status", BigintType.BIGINT, 0),
-                new LuceneColumnHandle("connector-1", "size", BigintType.BIGINT, 1));
+                new LuceneColumnHandle("connector-1", "clientip", VarcharType.VARCHAR, 1),
+                new LuceneColumnHandle("connector-1", "status", BigintType.BIGINT, 1),
+                new LuceneColumnHandle("connector-1", "size", BigintType.BIGINT, 2));
         try (LuceneRecordCursor cursor = new LuceneRecordCursor(path, columns)) {
-            while (cursor.advanceNextPosition()) {
-                System.out.println("status: " + cursor.getLong(0));
-                System.out.println("size: " + cursor.getLong(1));
+            for (int i = 0; i < 10; i++) {
+                if (cursor.advanceNextPosition()) {
+                    System.out.print("clientip: " + cursor.getSlice(0).toStringUtf8());
+                    System.out.print(", status: " + cursor.getLong(1));
+                    System.out.print(", size: " + cursor.getLong(2));
+                    System.out.println();
+                }
             }
         }
     }
