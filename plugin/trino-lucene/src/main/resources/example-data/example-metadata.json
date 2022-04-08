@@ -5,14 +5,14 @@
             "columns": [
                 {
                     "name": "size",
-                    "type": "INTEGER"
+                    "type": "BIGINT"
                 },
                 {
                     "name": "status",
-                    "type": "VARCHAR"
+                    "type": "BIGINT"
                 }
             ],
-            "sources": ["/Users/daichen/IdeaProjects/trino-lucene/plugin/trino-lucene/src/main/resources/example-data/index1"]
+            "sources": ["file:/Users/daichen/Temp/es-index-test-data/MM_gCu_7Ss-sAj3Jg1li0A/0/index"]
         }
     ],
     "example": [

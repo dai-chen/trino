@@ -13,16 +13,11 @@
  */
 package io.trino.plugin.lucene;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import com.google.common.io.ByteSource;
-import com.google.common.io.Resources;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.RecordSet;
 import io.trino.spi.type.Type;
-import org.apache.lucene.queryparser.classic.ParseException;
 
-import java.net.MalformedURLException;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
@@ -30,27 +25,21 @@ import static java.util.Objects.requireNonNull;
 public class LuceneRecordSet
         implements RecordSet
 {
+    private final LuceneSplit split;
     private final List<LuceneColumnHandle> columnHandles;
     private final List<Type> columnTypes;
-    private final ByteSource byteSource;
 
     public LuceneRecordSet(LuceneSplit split, List<LuceneColumnHandle> columnHandles)
     {
         requireNonNull(split, "split is null");
 
+        this.split = split;
         this.columnHandles = requireNonNull(columnHandles, "column handles is null");
         ImmutableList.Builder<Type> types = ImmutableList.builder();
         for (LuceneColumnHandle column : columnHandles) {
             types.add(column.getColumnType());
         }
         this.columnTypes = types.build();
-
-        try {
-            byteSource = Resources.asByteSource(split.getPath().toURL());
-        }
-        catch (MalformedURLException e) {
-            throw Throwables.propagate(e);
-        }
     }
 
     @Override
@@ -64,9 +53,9 @@ public class LuceneRecordSet
     {
         LuceneRecordCursor lrc = null;
         try {
-            lrc = new LuceneRecordCursor(columnHandles);
+            lrc = new LuceneRecordCursor(split.getPath(), columnHandles);
         }
-        catch (ParseException e) {
+        catch (Exception e) {
             e.printStackTrace();
         }
         return lrc;

@@ -21,13 +21,17 @@ import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
 
 import java.io.IOException;
-import java.nio.file.Paths;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,26 +56,36 @@ public class LuceneRecordCursor
     private int currentDocIdx;
     private int numDoc;
 
-    public LuceneRecordCursor(List<LuceneColumnHandle> columnHandles) throws ParseException
+    private TopDocs docs;
+    private List<SortedNumericDocValues> docValueIterators = new ArrayList<>();
+
+    public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles) throws Exception
     {
         this.columnHandles = columnHandles;
 
         IndexReader reader = null;
         try {
-            reader = DirectoryReader.open(FSDirectory.open(Paths.get("/home/liyong/workspace-neno/lucenetest/index")));
+            reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
         }
-        catch (IOException e) {
+        catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
         searcher = new IndexSearcher(reader);
-        this.numDoc = reader.maxDoc();
+        // this.numDoc = reader.maxDoc();
+
+        this.docs = searcher.search(new MatchAllDocsQuery(), 10000);
+        this.numDoc = docs.scoreDocs.length;
 
         fieldToColumnIndex = new int[columnHandles.size()];
         for (int i = 0; i < columnHandles.size(); i++) {
             LuceneColumnHandle columnHandle = columnHandles.get(i);
             fieldToColumnIndex[i] = columnHandle.getOrdinalPosition();
+
+            docValueIterators.add(DocValues.getSortedNumeric(reader.leaves().get(0).reader(), columnHandle.getColumnName()));
         }
+
+        fields = new ArrayList<>();
     }
 
     // @Override
@@ -105,6 +119,41 @@ public class LuceneRecordCursor
         if (currentDocIdx == numDoc) {
             return false;
         }
+
+        try {
+            fields.clear();
+            for (SortedNumericDocValues iterator : docValueIterators) {
+                iterator.advance(docs.scoreDocs[currentDocIdx].doc);
+                fields.add(String.valueOf(iterator.nextValue()));
+            }
+
+            currentDocIdx++;
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        /*
+        try {
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                LeafReader docValueReader = leaf.reader();
+
+                for (LuceneColumnHandle columnHandle : columnHandles) {
+                    if (columnHandle.getColumnType() == IntegerType.INTEGER) {
+                        fields.add(String.valueOf(docValueReader.getNumericDocValues(columnHandle.getColumnName()).longValue()));
+                    } else {
+                        // fields.add(docValueReader.getBinaryDocValues(columnHandle.getColumnName()).binaryValue().utf8ToString());
+                        //fields.add(docValueReader.getSortedDocValues(columnHandle.getColumnName()).);
+                    }
+                }
+            }
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+        */
+
+        /*
         Document doc = null;
         try {
             doc = searcher.doc(currentDocIdx++);
@@ -113,16 +162,17 @@ public class LuceneRecordCursor
         catch (IOException e) {
             e.printStackTrace();
         }
+        */
         return true;
     }
 
     private List<String> parseDoc(Document doc)
     {
         List<String> fds = new ArrayList<>();
-        String allFieldNames = "orderkey,custkey,orderstatus,totalprice,orderdate,orderpriority,clerk,shippriority,comment";
-        String[] fieldNames = allFieldNames.split(",");
-        for (int i = 0; i < fieldNames.length; i++) {
-            String fieldName = fieldNames[i];
+        // String allFieldNames = "orderkey,custkey,orderstatus,totalprice,orderdate,orderpriority,clerk,shippriority,comment";
+        // String[] fieldNames = allFieldNames.split(",");
+        for (int i = 0; i < columnHandles.size(); i++) {
+            String fieldName = columnHandles.get(i).getColumnName();
             String columnValue = doc.get(fieldName);
             fds.add(columnValue);
         }
