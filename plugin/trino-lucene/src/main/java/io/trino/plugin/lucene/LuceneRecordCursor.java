@@ -25,13 +25,17 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
@@ -41,6 +45,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -48,7 +53,6 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
-import static org.apache.lucene.search.Sort.INDEXORDER;
 
 public class LuceneRecordCursor
         implements RecordCursor
@@ -59,9 +63,8 @@ public class LuceneRecordCursor
 
     private final List<DocIdSetIterator> docValueIterators = new ArrayList<>();
 
-    private final ScoreDoc[] documents;
-    private int current;
-    private final int totalParts;
+    private final IndexReader reader;
+    private Iterator<Integer> docIdIterator;
 
     public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles) throws Exception
     {
@@ -71,12 +74,39 @@ public class LuceneRecordCursor
     public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles, Query query, int partNumber, int totalParts) throws Exception
     {
         this.columnHandles = columnHandles;
-        this.current = partNumber;
-        this.totalParts = totalParts;
 
-        IndexReader reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
+        this.reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
         IndexSearcher searcher = new IndexSearcher(reader);
-        documents = searcher.search(query, Integer.MAX_VALUE, INDEXORDER, false).scoreDocs;
+
+        List<Integer> docIds = new ArrayList<>();
+        searcher.search(query, new Collector() {
+            private int current;
+
+            @Override
+            public LeafCollector getLeafCollector(LeafReaderContext context)
+            {
+                return new LeafCollector()
+                {
+                    @Override
+                    public void setScorer(Scorable scorer) {}
+
+                    @Override
+                    public void collect(int doc)
+                    {
+                        if (current++ % totalParts == partNumber) {
+                            docIds.add(doc);
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public ScoreMode scoreMode()
+            {
+                return ScoreMode.COMPLETE_NO_SCORES;
+            }
+        });
+        docIdIterator = docIds.iterator();
 
         LeafReader leafReader = reader.leaves().get(0).reader();
         for (LuceneColumnHandle columnHandle : columnHandles) {
@@ -111,22 +141,17 @@ public class LuceneRecordCursor
     @Override
     public boolean advanceNextPosition()
     {
-        if (current >= documents.length) {
+        if (!docIdIterator.hasNext()) {
             return false;
         }
 
         try {
             fields.clear();
-            int docId = documents[current].doc;
-            current += totalParts;
+            int docId = docIdIterator.next();
 
             for (DocIdSetIterator iterator : docValueIterators) {
-                /* Doesn't work ...
-                if (iterator.advance(iterator.nextDoc()) == NO_MORE_DOCS) {
-                    return false;
-                }
-                */
                 iterator.advance(docId);
+
                 if (iterator instanceof SortedDocValues) {
                     SortedDocValues stringIterator = (SortedDocValues) iterator;
                     BytesRef bytesRef = stringIterator.lookupOrd(stringIterator.ordValue());
@@ -198,6 +223,14 @@ public class LuceneRecordCursor
     @Override
     public void close()
     {
+        docValueIterators.clear();
+        docIdIterator = null;
+        try {
+            reader.close();
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private String parseIP(BytesRef value)
