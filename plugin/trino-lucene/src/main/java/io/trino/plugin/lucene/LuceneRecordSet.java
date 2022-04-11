@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.RecordSet;
 import io.trino.spi.type.Type;
+import org.apache.lucene.search.MatchAllDocsQuery;
 
 import java.util.List;
 
@@ -53,7 +54,7 @@ public class LuceneRecordSet
     {
         LuceneRecordCursor lrc = null;
         try {
-            lrc = new LuceneRecordCursor(split.getPath(), columnHandles);
+            lrc = new LuceneRecordCursor(split.getPath(), columnHandles, new MatchAllDocsQuery(), split.getPartNumber(), split.getTotalParts());
         }
         catch (Exception e) {
             e.printStackTrace();

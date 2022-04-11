@@ -61,15 +61,18 @@ public class LuceneRecordCursor
 
     private final ScoreDoc[] documents;
     private int current;
+    private final int totalParts;
 
     public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles) throws Exception
     {
-        this(path, columnHandles, new MatchAllDocsQuery());
+        this(path, columnHandles, new MatchAllDocsQuery(), 0, 1);
     }
 
-    public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles, Query query) throws Exception
+    public LuceneRecordCursor(URI path, List<LuceneColumnHandle> columnHandles, Query query, int partNumber, int totalParts) throws Exception
     {
         this.columnHandles = columnHandles;
+        this.current = partNumber;
+        this.totalParts = totalParts;
 
         IndexReader reader = DirectoryReader.open(FSDirectory.open(Path.of(path)));
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -108,13 +111,14 @@ public class LuceneRecordCursor
     @Override
     public boolean advanceNextPosition()
     {
-        if (current == documents.length) {
+        if (current >= documents.length) {
             return false;
         }
 
         try {
             fields.clear();
-            int docId = documents[current++].doc;
+            int docId = documents[current].doc;
+            current += totalParts;
 
             for (DocIdSetIterator iterator : docValueIterators) {
                 /* Doesn't work ...

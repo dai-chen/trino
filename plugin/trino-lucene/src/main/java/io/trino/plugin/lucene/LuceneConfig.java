@@ -13,34 +13,39 @@
  */
 package io.trino.plugin.lucene;
 
-import com.google.common.io.Resources;
 import io.airlift.configuration.Config;
 
 import javax.validation.constraints.NotNull;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 
 public class LuceneConfig
 {
     private URI metadata;
+    private int splitsPerIndex;
 
     @NotNull
     public URI getMetadata()
     {
-        // return metadata;
-        try {
-            return Resources.getResource(getClass(), "/example-data/example-metadata.json").toURI();
-        }
-        catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        return metadata;
     }
 
-    @Config("metadata-uri")
+    @Config("lucene.metadata-uri")
     public LuceneConfig setMetadata(URI metadata)
     {
         this.metadata = metadata;
+        return this;
+    }
+
+    public int getSplitsPerIndex()
+    {
+        return splitsPerIndex;
+    }
+
+    @Config("lucene.splits-per-index")
+    public LuceneConfig setSplitsPerIndex(int splitsPerIndex)
+    {
+        this.splitsPerIndex = splitsPerIndex;
         return this;
     }
 }

@@ -80,6 +80,12 @@
         </artifact>
     </artifactSet>
 
+    <artifactSet to="plugin/lucene">
+        <artifact id="${project.groupId}:trino-lucene:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
     <artifactSet to="plugin/memory">
         <artifact id="${project.groupId}:trino-memory:zip:${project.version}">
             <unpack />

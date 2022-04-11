@@ -32,6 +32,8 @@ public class LuceneSplit
     private final URI path;
     private final boolean remotelyAccessible;
     private final List<HostAddress> addresses;
+    private final int partNumber;
+    private final int totalParts;
 
     @JsonCreator
     public LuceneSplit(
@@ -39,13 +41,17 @@ public class LuceneSplit
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("path") URI path,
-            @JsonProperty("addresses") List<HostAddress> addresses)
+            @JsonProperty("addresses") List<HostAddress> addresses,
+            @JsonProperty("partNumber") Integer partNumber,
+            @JsonProperty("totalParts") Integer totalParts)
     {
         this.schemaName = requireNonNull(schemaName, "schema name is null");
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.tableName = requireNonNull(tableName, "table name is null");
         this.path = requireNonNull(path, "path is null");
         this.addresses = requireNonNull(addresses, "address list is null");
+        this.partNumber = requireNonNull(partNumber, "partNumber is null");
+        this.totalParts = requireNonNull(totalParts, "totalParts is null");
 
 //        if ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme())) {
         remotelyAccessible = true;
@@ -88,6 +94,18 @@ public class LuceneSplit
     public List<HostAddress> getAddresses()
     {
         return addresses;
+    }
+
+    @JsonProperty
+    public int getPartNumber()
+    {
+        return partNumber;
+    }
+
+    @JsonProperty
+    public int getTotalParts()
+    {
+        return totalParts;
     }
 
     @Override

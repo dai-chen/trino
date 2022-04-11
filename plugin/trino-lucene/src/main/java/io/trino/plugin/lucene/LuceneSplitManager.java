@@ -40,13 +40,15 @@ public class LuceneSplitManager
     private final String connectorId;
     private final LuceneClient luceneClient;
     private final NodeManager nodeManager;
+    private final int splitsPerIndex;
 
     @Inject
-    public LuceneSplitManager(LuceneConnectorId connectorId, LuceneClient luceneClient, NodeManager nodeManager)
+    public LuceneSplitManager(LuceneConnectorId connectorId, LuceneClient luceneClient, NodeManager nodeManager, LuceneConfig luceneConfig)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
         this.luceneClient = requireNonNull(luceneClient, "client is null");
         this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
+        this.splitsPerIndex = luceneConfig.getSplitsPerIndex();
     }
 
     @Override
@@ -62,8 +64,10 @@ public class LuceneSplitManager
 
         List<ConnectorSplit> splits = new ArrayList<>();
         for (URI uri : luceneTable.getSources()) {
-            splits.add(new LuceneSplit(connectorId, luceneTableHandle.getSchemaName(), luceneTableHandle.getTableName(), uri,
-                    Arrays.asList(nodeManager.getCurrentNode().getHostAndPort())));
+            for (int i = 0; i < splitsPerIndex; i++) {
+                splits.add(new LuceneSplit(connectorId, luceneTableHandle.getSchemaName(), luceneTableHandle.getTableName(), uri,
+                        Arrays.asList(nodeManager.getCurrentNode().getHostAndPort()), i, splitsPerIndex));
+            }
         }
         Collections.shuffle(splits);
 
